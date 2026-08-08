@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Obrolin</title>
+<style>
+  :root{
+    --bg:#0d1016;
+    --frame:#151a24;
+    --card:#1b212d;
+    --card-2:#212836;
+    --ring:#2a3242;
+    --text:#e9ecf3;
+    --muted:#8b93a7;
+    --accent:#e0a740;      /* warm amber signature */
+    --accent-ink:#1a1406;
+    --bubble-me:#3b4b8f;   /* indigo */
+    --bubble-you:#232a38;
+    --danger:#e0596b;
+    --radius:20px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 700px at 15% -10%, #23283a 0%, transparent 55%),
+      radial-gradient(900px 600px at 110% 110%, #201a12 0%, transparent 50%),
+      var(--bg);
+    color:var(--text);
+    font-family:"Segoe UI",system-ui,Roboto,Ubuntu,Helvetica,Arial,sans-serif;
+    min-height:100dvh; overflow:hidden;
+  }
+  .phone{
+    width:100vw;
+    height:100dvh;
+    background:var(--frame);
+    overflow:hidden;
+    display:flex; flex-direction:column;
+    position:relative;
+  }
+  /* On wide screens, keep the chat column at a comfortable reading width
+     while the app still fills the full viewport instead of floating as a card. */
+  @media (min-width: 720px){
+    #view-contacts, #view-chat, #view-auth{ align-self:center; width:min(560px, 100%); }
+    .phone{ align-items:stretch; }
+    .brand{ max-width:560px; margin:0 auto; width:100%; }
+  }
+  }
+  .brand{
+    display:flex; align-items:center; gap:.5rem;
+    padding:.85rem 1rem .6rem;
+    flex-shrink:0;
+  }
+  .brand .mark{
+    width:26px;height:26px;border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),#a97220);
+    display:grid;place-items:center;font-weight:800;color:var(--accent-ink);font-size:.8rem;
+  }
+  .brand b{font-size:1rem;letter-spacing:.2px}
+  .brand .tag{position:absolute;font-size:0rem;color:var(--muted); margin-left:200px;margin-top:10px}
+
+  /* ---------- VIEW STACK ---------- */
+  .view{ display:none; flex-direction:column; min-height:0; flex:1; }
+  .view.active{ display:flex; }
+
+  /* ---------- AUTH VIEW ---------- */
+  #view-auth{ align-items:center; justify-content:center; padding:1.4rem; gap:0; text-align:center; }
+  #view-auth .hero-mark{
+    width:52px;height:52px;border-radius:16px;margin-bottom:.9rem;
+    background:linear-gradient(135deg,var(--accent),#8f5c17);
+    display:grid;place-items:center;font-size:1.4rem;color:var(--accent-ink);font-weight:800;
+  }
+  #view-auth h1{font-size:1.15rem;margin:0 0 .2rem}
+  #view-auth p.sub{color:var(--muted);font-size:.82rem;margin:0 0 1.1rem}
+  .form{width:100%;display:flex;flex-direction:column;gap:.55rem}
+  .field{
+    background:var(--card); border:1px solid var(--ring); border-radius:13px;
+    padding:.65rem .8rem; text-align:left;
+  }
+  .field label{display:block;font-size:.66rem;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;margin-bottom:.15rem}
+  .field input{width:100%;border:0;background:transparent;outline:none;color:var(--text);font-size:.92rem}
+  .primary-btn{
+    appearance:none;border:0;border-radius:13px;padding:.75rem;margin-top:.3rem;
+    background:var(--accent); color:var(--accent-ink); font-weight:700; font-size:.92rem;cursor:pointer;
+  }
+  .primary-btn:active{transform:scale(.98)}
+  .primary-btn:disabled{opacity:.55}
+  .switch-line{font-size:.8rem;color:var(--muted);margin-top:.9rem}
+  .switch-line button{background:none;border:0;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:.8rem}
+  .auth-error{color:var(--danger);font-size:.78rem;min-height:1.1em;margin-top:.3rem}
+
+  /* ---------- CONTACTS VIEW ---------- */
+  #view-contacts{ min-height:0; }
+  .search-row{ padding:0 1rem .7rem; flex-shrink:0; }
+  .search-box{
+    display:flex;align-items:center;gap:.5rem;background:var(--card);
+    border:1px solid var(--ring);border-radius:13px;padding:.55rem .75rem;
+  }
+  .search-box input{flex:1;border:0;background:transparent;outline:none;color:var(--text);font-size:.87rem}
+  .me-row{
+    display:flex;align-items:center;gap:.6rem;padding:.15rem 1rem .8rem;flex-shrink:0;
+  }
+  .me-row .avatar{
+    width:38px;height:38px;flex-shrink:0;
+  }
+  .me-row .who{min-width:0;flex:1}
+  .me-row .who b{font-size:.88rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .me-row .who span{font-size:.72rem;color:var(--muted)}
+  .icon-btn{
+    width:32px;height:32px;border-radius:10px;border:1px solid var(--ring);background:var(--card);
+    color:var(--muted);display:grid;place-items:center;cursor:pointer;flex-shrink:0;
+  }
+  .icon-btn:active{transform:scale(.94)}
+
+  .list-label{ padding:.2rem 1rem .4rem; font-size:.72rem; color:var(--muted); letter-spacing:.3px; text-transform:uppercase; flex-shrink:0; }
+  .contacts{ overflow-y:auto; flex:1; min-height:0; padding:0 .5rem .6rem; }
+  .contact{
+    display:flex;align-items:center;gap:.65rem; padding:.6rem .6rem; border-radius:14px; cursor:pointer;
+  }
+  .contact:active{background:var(--card-2)}
+  .contact:hover{background:var(--card)}
+  .avatar{
+    width:40px;height:40px;border-radius:50%;flex-shrink:0;
+    background:linear-gradient(150deg,#3a4360,#232a38);
+    display:grid;place-items:center;font-weight:700;font-size:.85rem;color:#cfd4e2;
+    border:1px solid var(--ring);
+  }
+  .contact .meta{min-width:0;flex:1}
+  .contact .meta .row1{display:flex;align-items:center;gap:.3rem}
+  .contact .meta b{font-size:.9rem; white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .contact .meta .small{font-size:.74rem;color:var(--muted); white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .contact .meta .small.unread-preview{color:#c7cce0}
+  .contact.has-unread .meta b{color:#fff}
+  .badge{
+    margin-left:auto; flex-shrink:0; min-width:19px; height:19px; padding:0 5px;
+    border-radius:999px; background:var(--danger); color:#fff;
+    font-size:.7rem; font-weight:700; display:grid; place-items:center;
+  }
+  .empty-state{ margin:auto; text-align:center; color:var(--muted); font-size:.82rem; padding:1.5rem; }
+  #adminBtn.on{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .verify-toggle{
+    margin-left:auto; flex-shrink:0; border:1px solid var(--ring); background:var(--card-2);
+    color:var(--muted); font-size:.68rem; font-weight:700; padding:.3rem .55rem; border-radius:9px; cursor:pointer;
+  }
+  .verify-toggle.on{ background:#3b9df8; color:#fff; border-color:#3b9df8; }
+  .verify-toggle:active{ transform:scale(.94); }
+
+  /* ---------- CHAT VIEW ---------- */
+  #view-chat{ min-height:0; }
+  .chat-hd{
+    display:flex;align-items:center;gap:.6rem;padding:.6rem 1rem;border-bottom:1px solid var(--ring);flex-shrink:0;
+  }
+  .back-btn{
+    width:30px;height:30px;border-radius:9px;border:0;background:transparent;color:var(--text);
+    display:grid;place-items:center;cursor:pointer;flex-shrink:0;
+  }
+  .chat-hd .name{font-weight:700;font-size:.92rem}
+  .chat-hd .status{font-size:.72rem;color:var(--muted)}
+  .verified-badge{ display:inline-flex; vertical-align:-2px; margin-left:3px; flex-shrink:0; }
+  .msgs{ flex:1; min-height:0; overflow-y:auto; padding:.9rem; display:flex; flex-direction:column; gap:.4rem; }
+  .b{
+    max-width:78%; padding:.5rem .7rem; border-radius:15px; line-height:1.35; font-size:.87rem;
+    word-wrap:break-word; white-space:pre-wrap;
+  }
+  .me{ align-self:flex-end; background:var(--bubble-me); border-bottom-right-radius:5px; }
+  .other{ align-self:flex-start; background:var(--bubble-you); border-bottom-left-radius:5px; }
+  .b .time{ font-size:.65rem; opacity:.75; margin-top:.2rem; text-align:right; display:flex; align-items:center; justify-content:flex-end; gap:3px; }
+  .ticks{ display:inline-flex; align-items:center; line-height:0; }
+  .ticks svg{ display:block; }
+  .ticks.unread svg path{ stroke:#c9cede; }
+  .ticks.read svg path{ stroke:#4fc3f7; }
+  .day-sep{ align-self:center; font-size:.68rem; color:var(--muted); background:var(--card); padding:.15rem .6rem; border-radius:8px; margin:.3rem 0; }
+  .chat-send{ display:flex; gap:.5rem; padding:.7rem; border-top:1px solid var(--ring); flex-shrink:0; }
+  .chat-send input{
+    flex:1;border:1px solid var(--ring);background:var(--card);border-radius:14px;
+    padding:.62rem .8rem;color:var(--text);outline:none;font-size:.88rem;
+  }
+  .send-btn{
+    width:42px;height:42px;flex-shrink:0;border:0;border-radius:14px;background:var(--accent);
+    color:var(--accent-ink);display:grid;place-items:center;cursor:pointer;
+  }
+  .send-btn:active{transform:scale(.94)}
+
+  ::-webkit-scrollbar{width:6px}
+  ::-webkit-scrollbar-thumb{background:#2a3242;border-radius:6px}
+
+  .toast{
+    position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+    background:#232a38; color:#fff; padding:.5rem .85rem; border-radius:11px;
+    font-size:.78rem; border:1px solid var(--ring); z-index:50; box-shadow:0 8px 24px rgba(0,0,0,.4);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .toast.show{opacity:1}
+
+  /* ---------- PROFILE VIEW ---------- */
+  #view-profile{ padding:0; }
+  .profile-hero{
+    display:flex; flex-direction:column; align-items:center; gap:.5rem;
+    padding:1.6rem 1rem 1.2rem; border-bottom:1px solid var(--ring);
+  }
+  .profile-hero .avatar{ width:64px; height:64px; font-size:1.4rem; }
+  .profile-hero .pname{ font-weight:700; font-size:1.02rem; display:flex; align-items:center; }
+  .profile-body{ padding:1rem; display:flex; flex-direction:column; gap:.8rem; }
+  .profile-field{
+    background:var(--card); border:1px solid var(--ring); border-radius:12px;
+    padding:.6rem .8rem;
+  }
+  .profile-field label{ display:block; font-size:.68rem; color:var(--muted); margin-bottom:.15rem; }
+  .profile-field .val{ font-size:.87rem; word-break:break-all; }
+  .profile-note{ font-size:.72rem; color:var(--muted); line-height:1.4; }
+  .pw-form{ display:flex; flex-direction:column; gap:.55rem; }
+  .pw-form input{
+    border:1px solid var(--ring); background:var(--card); border-radius:10px;
+    padding:.55rem .7rem; color:var(--text); outline:none; font-size:.85rem;
+  }
+  .pw-error{ color:var(--danger); font-size:.75rem; min-height:1em; }
+  .pw-ok{ color:#4fc3f7; font-size:.75rem; min-height:1em; }
+  .secondary-btn{
+    border:1px solid var(--ring); background:transparent; color:var(--text);
+    border-radius:10px; padding:.55rem .7rem; font-size:.83rem; cursor:pointer;
+  }
+
+  /* delete-own-message button */
+  .b{ position:relative; }
+  .b.me{ padding-right:1.9rem; }
+  .msg-del{
+    position:absolute; top:.3rem; right:.3rem; width:20px; height:20px;
+    border:0; background:transparent; color:inherit; opacity:.55; cursor:pointer;
+    display:none; align-items:center; justify-content:center; padding:0;
+  }
+  .b.me:hover .msg-del, .b.me.show-del .msg-del{ display:flex; }
+  .msg-del:active{ opacity:1; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="brand">
+    <span class="tag" id="brandTag"></span>
+  </div>
+
+  <!-- ============ AUTH ============ -->
+  <section id="view-auth" class="view active">
+    <div class="hero-mark">💬</div>
+    <h1 id="authTitle">Masuk ke akun kamu</h1>
+    <p class="sub" id="authSub">Chat langsung, cari kontak, mulai ngobrol.</p>
+    <div class="form">
+      <div class="field" id="usernameField" style="display:none">
+        <label>Username</label>
+        <input id="regUsername" placeholder="mis. budi_santoso" autocomplete="username"/>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input id="authEmail" type="email" placeholder="kamu@email.com" autocomplete="email"/>
+      </div>
+      <div class="field">
+        <label>Kata sandi</label>
+        <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <div class="auth-error" id="authError"></div>
+      <button class="primary-btn" id="authSubmit">Masuk</button>
+    </div>
+    <div class="switch-line">
+      <span id="switchText">Belum punya akun?</span>
+      <button id="switchBtn">Daftar</button>
+    </div>
+  </section>
+
+  <!-- ============ CONTACTS ============ -->
+  <section id="view-contacts" class="view">
+    <div class="me-row">
+      <div class="avatar" id="myAvatar">?</div>
+      <div class="who">
+        <b id="myName">—</b>
+        <span>Online</span>
+      </div>
+      <button class="icon-btn" id="profileBtn" title="Profil saya">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="adminBtn" title="Mode admin" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V7l7-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="logoutBtn" title="Keluar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 17l5-5-5-5M20 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="search-row">
+      <div class="search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.35-4.35" stroke="#8b93a7" stroke-width="2" stroke-linecap="round"/><circle cx="10" cy="10" r="7" stroke="#8b93a7" stroke-width="2"/></svg>
+        <input id="searchInput" placeholder="Cari username…"/>
+      </div>
+    </div>
+    <div class="list-label">Kontak</div>
+    <div id="contactsList" class="contacts"></div>
+  </section>
+
+  <!-- ============ PROFIL SAYA ============ -->
+  <section id="view-profile" class="view">
+    <div class="chat-hd">
+      <button class="back-btn" id="profileBackBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="name">Profil saya</div>
+    </div>
+    <div class="profile-hero">
+      <div class="avatar" id="profileAvatar">?</div>
+      <div class="pname" id="profileName">—</div>
+    </div>
+    <div class="profile-body">
+      <div class="profile-field">
+        <label>Username</label>
+        <div class="val" id="profileUsername">—</div>
+      </div>
+      <div class="profile-field">
+        <label>Email</label>
+        <div class="val" id="profileEmail">—</div>
+      </div>
+      <div class="profile-field">
+        <label>Bergabung sejak</label>
+        <div class="val" id="profileJoined">—</div>
+      </div>
+
+      <button class="secondary-btn" id="copyProfileLinkBtn">Salin Link Profil</button>
+      <button class="secondary-btn" id="showPwFormBtn">Ganti kata sandi</button>
+      <div class="pw-form" id="pwForm" style="display:none">
+        <p class="profile-note">Demi keamanan, kata sandi kamu tidak pernah disimpan atau bisa dilihat kembali di aplikasi ini — hanya Firebase yang menyimpannya secara terenkripsi. Kalau lupa, ganti dengan yang baru di sini.</p>
+        <input id="pwCurrent" type="password" placeholder="Kata sandi saat ini" autocomplete="current-password"/>
+        <input id="pwNew" type="password" placeholder="Kata sandi baru (min. 6 karakter)" autocomplete="new-password"/>
+        <input id="pwNewConfirm" type="password" placeholder="Ulangi kata sandi baru" autocomplete="new-password"/>
+        <div class="pw-error" id="pwError"></div>
+        <div class="pw-ok" id="pwOk"></div>
+        <button class="primary-btn" id="pwSubmitBtn">Simpan kata sandi baru</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHAT ROOM ============ -->
+  <section id="view-chat" class="view">
+    <div class="chat-hd">
+      <button class="back-btn" id="backBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="avatar" id="peerAvatar" style="width:34px;height:34px">?</div>
+      <div>
+        <div class="name" id="peerName">Pilih kontak</div>
+        <div class="status" id="peerStatus"></div>
+      </div>
+    </div>
+    <div id="msgsEl" class="msgs"></div>
+    <div class="chat-send">
+      <input id="textInput" placeholder="Tulis pesan…"/>
+      <button class="send-btn" id="sendBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<!-- Firebase v10 Modular SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signOut, onAuthStateChanged, updateProfile,
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {
+  getDatabase, ref, set, update, remove, onValue, push, query, get,
+  orderByChild, startAt, endAt, limitToFirst, serverTimestamp, increment
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBBT-3vGZYlb2A8_F93XsFHX54F-HuJyAU",
+  authDomain: "ptube-6bd97.firebaseapp.com",
+  databaseURL: "https://ptube-6bd97-default-rtdb.firebaseio.com",
+  projectId: "ptube-6bd97",
+  storageBucket: "ptube-6bd97.firebasestorage.app",
+  messagingSenderId: "282752218641",
+  appId: "1:282752218641:web:1230361a932c283518e3b0"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const $ = s => document.querySelector(s);
+
+/* =========================================================
+   PROFILE LINK  (https://domain.com/chat.html?uid=USER_UID)
+   - pendingProfileUid is read once from the URL on page load.
+   - It's only acted on after a successful login (see
+     onAuthStateChanged -> openPendingProfileLink()).
+   ========================================================= */
+const urlParams = new URLSearchParams(location.search);
+let pendingProfileUid = urlParams.get('uid') || null;
+
+function buildProfileLink(uid){
+  return `${location.origin}${location.pathname}?uid=${uid}`;
+}
+
+async function openPendingProfileLink(){
+  if(!pendingProfileUid || !ME) return;
+  const targetUid = pendingProfileUid;
+  pendingProfileUid = null; // consume so it only ever runs once per page load
+
+  // Opening your own profile link has nothing to jump into — just clean the URL.
+  if(targetUid === ME.uid){
+    history.replaceState(null, '', location.pathname);
+    return;
+  }
+
+  try{
+    const snap = await get(ref(db, `users/${targetUid}`));
+    const u = snap.val();
+    if(u && u.uid){
+      openChatWith(u.uid, u.username || 'Pengguna', !!u.verified);
+    } else {
+      toast('Pengguna tidak ditemukan');
+    }
+  }catch(e){
+    console.error('Gagal membuka link profil:', e);
+    toast('Pengguna tidak ditemukan');
+  }finally{
+    history.replaceState(null, '', location.pathname);
+  }
+}
+
+/* ---------- view switching ---------- */
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+/* ---------- helpers ---------- */
+function escapeHtml(s){
+  return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+}
+function initials(name){ return (name||'?').trim().slice(0,1).toUpperCase(); }
+function chatIdOf(a,b){ return a < b ? `${a}__${b}` : `${b}__${a}`; }
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+function verifiedBadge(isVerified){
+  if(!isVerified) return '';
+  return `<span class="verified-badge" title="Terverifikasi">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" fill="#3b9df8"/>
+      <path d="M7.5 12.5l3 3 6-6.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </span>`;
+}
+
+function readTicks(read){
+  const cls = read ? 'ticks read' : 'ticks unread';
+  const secondPath = read
+    ? `<path d="M14 12l2.5 2.5L22 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+    : '';
+  return `<span class="${cls}">
+    <svg width="15" height="10" viewBox="0 0 24 16" fill="none">
+      <path d="M1 8l4.5 4.5L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      ${secondPath}
+    </svg>
+  </span>`;
+}
+
+/* =========================================================
+   AUTH VIEW LOGIC (login / register with username)
+   ========================================================= */
+let mode = 'login'; // or 'register'
+
+function setMode(next){
+  mode = next;
+  const isReg = mode === 'register';
+  $('#usernameField').style.display = isReg ? 'block' : 'none';
+  $('#authTitle').textContent = isReg ? 'Buat akun baru' : 'Masuk ke akun kamu';
+  $('#authSub').textContent = isReg ? 'Isi username, email, dan kata sandi.' : 'Chat langsung, cari kontak, mulai ngobrol.';
+  $('#authSubmit').textContent = isReg ? 'Daftar' : 'Masuk';
+  $('#switchText').textContent = isReg ? 'Sudah punya akun?' : 'Belum punya akun?';
+  $('#switchBtn').textContent = isReg ? 'Masuk' : 'Daftar';
+  $('#authError').textContent = '';
+}
+$('#switchBtn').onclick = ()=> setMode(mode==='login' ? 'register' : 'login');
+
+$('#authSubmit').onclick = async ()=>{
+  const email = ($('#authEmail').value||'').trim();
+  const password = $('#authPassword').value||'';
+  const username = ($('#regUsername').value||'').trim();
+  const errEl = $('#authError');
+  errEl.textContent = '';
+
+  if(!email || !password){ errEl.textContent = 'Isi email dan kata sandi.'; return; }
+  if(mode==='register' && !username){ errEl.textContent = 'Isi username kamu.'; return; }
+
+  $('#authSubmit').disabled = true;
+  try{
+    if(mode === 'register'){
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(cred.user, { displayName: username });
+      await set(ref(db, `users/${cred.user.uid}`), {
+        uid: cred.user.uid,
+        username,
+        usernameLower: username.toLowerCase(),
+        email,
+        verified: false,
+        createdAt: Date.now(),
+        lastSeen: Date.now()
+      });
+      toast('Akun dibuat, selamat datang!');
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+  }catch(e){
+    errEl.textContent = friendlyAuthError(e.code);
+  }finally{
+    $('#authSubmit').disabled = false;
+  }
+};
+
+function friendlyAuthError(code){
+  const map = {
+    'auth/email-already-in-use':'Email sudah terdaftar. Coba masuk.',
+    'auth/invalid-email':'Format email tidak valid.',
+    'auth/weak-password':'Kata sandi minimal 6 karakter.',
+    'auth/invalid-credential':'Email atau kata sandi salah.',
+    'auth/wrong-password':'Email atau kata sandi salah.',
+    'auth/user-not-found':'Akun tidak ditemukan. Coba daftar.',
+    'auth/too-many-requests':'Terlalu banyak percobaan, coba lagi nanti.',
+    'auth/unauthorized-domain':'Domain ini belum diizinkan di Firebase (Authentication → Settings → Authorized domains).',
+    'auth/network-request-failed':'Koneksi gagal, cek internet kamu.'
+  };
+  return map[code] || `Terjadi kesalahan (${code||'unknown'}).`;
+}
+
+$('#logoutBtn').onclick = async ()=>{
+  teardownRealtime();
+  await signOut(auth);
+};
+
+$('#adminBtn').onclick = ()=>{
+  if(!isAdmin) return;
+  adminMode = !adminMode;
+  $('#adminBtn').classList.toggle('on', adminMode);
+  renderContacts();
+  toast(adminMode ? 'Mode admin aktif — ketuk tombol centang di sebelah kontak' : 'Mode admin nonaktif');
+};
+
+async function toggleVerified(uid, current){
+  if(!isAdmin) return;
+  try{
+    await update(ref(db, `users/${uid}`), { verified: !current });
+  }catch(e){
+    console.error('Gagal ubah status verifikasi:', e);
+    toast('Gagal ubah verifikasi (cek Database Rules).');
+  }
+}
+
+function teardownRealtime(){
+  if(unsubMsgs){ unsubMsgs(); unsubMsgs=null; }
+  if(unsubUsers){ unsubUsers(); unsubUsers=null; }
+  if(unsubInbox){ unsubInbox(); unsubInbox=null; }
+}
+
+/* =========================================================
+   PROFIL SAYA
+   ========================================================= */
+$('#profileBtn').onclick = ()=>{
+  if(!ME) return;
+  $('#profileAvatar').textContent = initials(ME.username);
+  $('#profileName').innerHTML = escapeHtml(ME.username) + verifiedBadge(usersCache[ME.uid]?.verified);
+  $('#profileUsername').textContent = ME.username;
+  $('#profileEmail').textContent = ME.email || '—';
+  $('#profileJoined').textContent = ME.createdAt
+    ? new Date(ME.createdAt).toLocaleDateString([], { day:'numeric', month:'long', year:'numeric' })
+    : '—';
+  $('#pwForm').style.display = 'none';
+  $('#pwCurrent').value = ''; $('#pwNew').value = ''; $('#pwNewConfirm').value = '';
+  $('#pwError').textContent = ''; $('#pwOk').textContent = '';
+  showView('#view-profile');
+};
+
+$('#profileBackBtn').onclick = ()=> showView('#view-contacts');
+
+$('#copyProfileLinkBtn').onclick = async ()=>{
+  if(!ME) return;
+  const link = buildProfileLink(ME.uid);
+  try{
+    await navigator.clipboard.writeText(link);
+  }catch(e){
+    // Fallback for contexts where the Clipboard API is unavailable/blocked.
+    const ta = document.createElement('textarea');
+    ta.value = link;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand('copy'); }catch(_){}
+    document.body.removeChild(ta);
+  }
+  toast('Link profil berhasil disalin');
+};
+
+$('#showPwFormBtn').onclick = ()=>{
+  const f = $('#pwForm');
+  f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+};
+
+$('#pwSubmitBtn').onclick = async ()=>{
+  const cur = $('#pwCurrent').value || '';
+  const next = $('#pwNew').value || '';
+  const confirmPw = $('#pwNewConfirm').value || '';
+  const errEl = $('#pwError'), okEl = $('#pwOk');
+  errEl.textContent = ''; okEl.textContent = '';
+
+  if(!cur || !next || !confirmPw){ errEl.textContent = 'Isi semua kolom.'; return; }
+  if(next.length < 6){ errEl.textContent = 'Kata sandi baru minimal 6 karakter.'; return; }
+  if(next !== confirmPw){ errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
+
+  $('#pwSubmitBtn').disabled = true;
+  try{
+    const user = auth.currentUser;
+    const cred = EmailAuthProvider.credential(user.email, cur);
+    await reauthenticateWithCredential(user, cred);
+    await updatePassword(user, next);
+    okEl.textContent = 'Kata sandi berhasil diganti.';
+    $('#pwCurrent').value = ''; $('#pwNew').value = ''; $('#pwNewConfirm').value = '';
+    toast('Kata sandi diperbarui.');
+  }catch(e){
+    errEl.textContent = friendlyAuthError(e.code);
+  }finally{
+    $('#pwSubmitBtn').disabled = false;
+  }
+};
+
+/* =========================================================
+   SESSION STATE
+   ========================================================= */
+let ME = null;        // { uid, username }
+let PEER = null;       // { uid, username }
+let unsubMsgs = null;
+let unsubUsers = null;
+let unsubInbox = null;
+let usersCache = {};   // uid -> user record
+let inboxCache = {};   // peerUid -> { username, lastMessage, lastTs, unread }
+
+const ADMIN_EMAIL = 'opintar114@gmail.com';
+let isAdmin = false;
+let adminMode = false;
+
+onAuthStateChanged(auth, async (user)=>{
+  if(user){
+    ME = {
+      uid: user.uid,
+      username: user.displayName || (user.email||'').split('@')[0],
+      email: user.email || '',
+      createdAt: user.metadata && user.metadata.creationTime ? new Date(user.metadata.creationTime).getTime() : null
+    };
+    $('#myName').textContent = ME.username;
+    $('#myAvatar').textContent = initials(ME.username);
+    $('#brandTag').textContent = ME.username;
+
+    isAdmin = (user.email || '').toLowerCase() === ADMIN_EMAIL;
+    adminMode = false;
+    $('#adminBtn').style.display = isAdmin ? 'grid' : 'none';
+    $('#adminBtn').classList.remove('on');
+
+    // Navigate first so a database hiccup never traps the user on the login screen.
+    showView('#view-contacts');
+    setupContactsRealtime();
+
+    // If the app was opened via a profile link (?uid=...), jump straight into that chat.
+    openPendingProfileLink();
+
+    try{
+      await update(ref(db, `users/${user.uid}`), {
+        uid: user.uid,
+        username: ME.username,
+        usernameLower: ME.username.toLowerCase(),
+        email: user.email || '',
+        lastSeen: Date.now()
+      });
+    }catch(e){
+      console.error('Gagal update profil:', e);
+      toast('Tersambung, tapi gagal sinkron profil (cek Database Rules).');
+    }
+  } else {
+    ME = null;
+    teardownRealtime();
+    usersCache = {}; inboxCache = {};
+    setMode('login');
+    $('#authEmail').value=''; $('#authPassword').value=''; $('#regUsername').value='';
+    showView('#view-auth');
+  }
+});
+
+/* =========================================================
+   CONTACTS VIEW — realtime users list + realtime inbox
+   (inbox holds per-peer unread count & last message, so new
+   chats auto move to the top and show a red badge live)
+   ========================================================= */
+$('#searchInput').addEventListener('input', debounce(renderContacts, 200));
+
+function setupContactsRealtime(){
+  if(unsubUsers) unsubUsers();
+  if(unsubInbox) unsubInbox();
+
+  const listEl = $('#contactsList');
+  listEl.innerHTML = '<div class="empty-state">Memuat kontak…</div>';
+
+  unsubUsers = onValue(ref(db, 'users'), snap=>{
+    usersCache = snap.val() || {};
+    renderContacts();
+  }, err=>{ console.error('users listener:', err); });
+
+  unsubInbox = onValue(ref(db, `inbox/${ME.uid}`), snap=>{
+    inboxCache = snap.val() || {};
+    renderContacts();
+  }, err=>{ console.error('inbox listener:', err); });
+}
+
+function renderContacts(){
+  if(!ME) return;
+  const listEl = $('#contactsList');
+  const term = ($('#searchInput').value||'').trim().toLowerCase();
+
+  let items = Object.values(usersCache).filter(u => u.uid !== ME.uid);
+  if(term){
+    items = items.filter(u => (u.usernameLower||u.username||'').toLowerCase().includes(term));
+  }
+
+  items = items.map(u=>{
+    const inbox = inboxCache[u.uid];
+    return {
+      ...u,
+      unread: inbox?.unread || 0,
+      lastMessage: inbox?.lastMessage || '',
+      lastTs: inbox?.lastTs || 0
+    };
+  }).sort((a,b)=>{
+    const at = a.lastTs || a.lastSeen || 0;
+    const bt = b.lastTs || b.lastSeen || 0;
+    return bt - at;
+  });
+
+  if(!items.length){
+    listEl.innerHTML = `<div class="empty-state">${term ? 'Tidak ada username cocok.' : 'Belum ada kontak lain. Ajak temanmu daftar!'}</div>`;
+    return;
+  }
+  listEl.innerHTML = items.map(contactRow).join('');
+  listEl.querySelectorAll('[data-uid]').forEach(el=>{
+    el.onclick = ()=> openChatWith(
+      el.getAttribute('data-uid'),
+      el.getAttribute('data-name'),
+      el.getAttribute('data-verified') === '1'
+    );
+  });
+  listEl.querySelectorAll('[data-toggle-uid]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      toggleVerified(btn.getAttribute('data-toggle-uid'), btn.getAttribute('data-current') === '1');
+    };
+  });
+}
+
+function contactRow(u){
+  const hasUnread = u.unread > 0;
+  const preview = u.lastMessage
+    ? escapeHtml(u.lastMessage)
+    : (u.lastSeen ? `Aktif ${timeAgo(u.lastSeen)}` : 'belum aktif');
+  const badge = hasUnread ? `<div class="badge">${u.unread > 9 ? '9+' : u.unread}</div>` : '';
+  const verifyBtn = (isAdmin && adminMode)
+    ? `<button class="verify-toggle ${u.verified ? 'on' : ''}" data-toggle-uid="${u.uid}" data-current="${u.verified ? '1' : ''}">${u.verified ? '✓ Verified' : 'Verifikasi'}</button>`
+    : '';
+  return `<div class="contact ${hasUnread ? 'has-unread' : ''}" data-uid="${u.uid}" data-name="${escapeHtml(u.username)}" data-verified="${u.verified ? '1' : ''}">
+    <div class="avatar">${initials(u.username)}</div>
+    <div class="meta">
+      <div class="row1"><b>${escapeHtml(u.username)}</b>${verifiedBadge(u.verified)}</div>
+      <div class="small ${hasUnread ? 'unread-preview' : ''}">${preview}</div>
+    </div>
+    ${verifyBtn}${badge}
+  </div>`;
+}
+
+function timeAgo(ts){
+  const s = Math.floor((Date.now()-ts)/1000);
+  if(s < 60) return 'baru saja';
+  if(s < 3600) return `${Math.floor(s/60)} menit lalu`;
+  if(s < 86400) return `${Math.floor(s/3600)} jam lalu`;
+  return new Date(ts).toLocaleDateString();
+}
+
+/* =========================================================
+   CHAT ROOM — tapping a contact profile jumps straight in
+   ========================================================= */
+function openChatWith(uid, username, verified){
+  PEER = { uid, username, verified };
+  $('#peerName').innerHTML = escapeHtml(username) + verifiedBadge(verified);
+  $('#peerAvatar').textContent = initials(username);
+  $('#peerStatus').textContent = 'Ruang obrolan';
+  $('#msgsEl').innerHTML = '<div class="empty-state">Memuat percakapan…</div>';
+  showView('#view-chat');
+
+  // Clear the unread badge for this contact now that the room is open.
+  update(ref(db, `inbox/${ME.uid}/${uid}`), { unread: 0 }).catch(e=>console.error('clear unread:', e));
+
+  if(unsubMsgs) unsubMsgs();
+  const cid = chatIdOf(ME.uid, PEER.uid);
+  const msgsRef = ref(db, `chats/${cid}/messages`);
+  unsubMsgs = onValue(msgsRef, snap=>{
+    const data = snap.val() || {};
+    const arr = Object.entries(data)
+      .map(([id,v])=>({ id, ...v }))
+      .sort((a,b)=>(a.ts||0)-(b.ts||0));
+    renderMsgs(arr);
+    requestAnimationFrame(()=>{ $('#msgsEl').scrollTop = $('#msgsEl').scrollHeight; });
+
+    // Mark any messages the peer sent me as read, so their bubble turns into a blue double-check.
+    arr.filter(m => m.from === PEER.uid && !m.read).forEach(m=>{
+      update(ref(db, `chats/${cid}/messages/${m.id}`), { read: true }).catch(()=>{});
+    });
+  });
+}
+
+$('#backBtn').onclick = ()=>{
+  if(unsubMsgs){ unsubMsgs(); unsubMsgs=null; }
+  PEER = null;
+  showView('#view-contacts');
+};
+
+function renderMsgs(list){
+  const el = $('#msgsEl');
+  if(!list.length){
+    el.innerHTML = '<div class="empty-state">Belum ada pesan. Mulai ngobrol ✨</div>';
+    return;
+  }
+  let lastDay = '';
+  let html = '';
+  for(const m of list){
+    const d = m.ts ? new Date(m.ts) : null;
+    const dayKey = d ? d.toDateString() : '';
+    if(dayKey && dayKey !== lastDay){
+      html += `<div class="day-sep">${d.toLocaleDateString([], {day:'numeric', month:'short'})}</div>`;
+      lastDay = dayKey;
+    }
+    const mine = m.from === ME.uid;
+    const time = d ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+    const ticks = mine ? readTicks(!!m.read) : '';
+    const delBtn = mine ? `<button class="msg-del" data-mid="${m.id}" title="Hapus pesan">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>` : '';
+    html += `<div class="b ${mine?'me':'other'}">${delBtn}${escapeHtml(m.text||'')}<div class="time">${time}${ticks}</div></div>`;
+  }
+  el.innerHTML = html;
+}
+
+$('#msgsEl').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('.msg-del');
+  if(!btn || !ME || !PEER) return;
+  const mid = btn.dataset.mid;
+  if(!confirm('Hapus pesan ini?')) return;
+  const cid = chatIdOf(ME.uid, PEER.uid);
+  try{
+    await remove(ref(db, `chats/${cid}/messages/${mid}`));
+  }catch(err){
+    console.error('Gagal hapus pesan:', err);
+    toast('Gagal hapus pesan (cek Database Rules).');
+  }
+});
+// Tap a bubble on mobile to reveal its delete button (hover doesn't exist on touch).
+$('#msgsEl').addEventListener('click', (e)=>{
+  const bubble = e.target.closest('.b.me');
+  if(!bubble || e.target.closest('.msg-del')) return;
+  document.querySelectorAll('.b.me.show-del').forEach(b=>{ if(b!==bubble) b.classList.remove('show-del'); });
+  bubble.classList.toggle('show-del');
+});
+
+$('#sendBtn').onclick = sendMessage;
+$('#textInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendMessage(); });
+
+async function sendMessage(){
+  const input = $('#textInput');
+  const text = (input.value||'').trim();
+  if(!text || !ME || !PEER) return;
+  const cid = chatIdOf(ME.uid, PEER.uid);
+  const newRef = push(ref(db, `chats/${cid}/messages`));
+  const now = Date.now();
+  input.value = '';
+
+  await set(newRef, { from: ME.uid, fromName: ME.username, to: PEER.uid, text, ts: now, read: false });
+  await update(ref(db, `users/${ME.uid}`), { lastSeen: now });
+
+  // My side of the inbox: I've obviously "read" what I just sent.
+  await update(ref(db, `inbox/${ME.uid}/${PEER.uid}`), {
+    username: PEER.username, lastMessage: text, lastTs: now, unread: 0
+  });
+  // Recipient's side: bump their unread badge so it shows red at the top of their list.
+  await update(ref(db, `inbox/${PEER.uid}/${ME.uid}`), {
+    username: ME.username, lastMessage: text, lastTs: now, unread: increment(1)
+  });
+}
+</script>
+</body>
+</html>
