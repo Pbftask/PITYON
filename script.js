@@ -72,7 +72,11 @@ const S = {
   // ---- Text & Mosaic edit layers (baked in at render/export time) ----
   textLayers:[],    // {id, text, x, y, size, color, bold, stroke, opacity, order}
   mosaicLayers:[],  // {id, x, y, w, h, block, order}
-  stickerLayers:[]  // {id, url, premium, x, y, scale, rotation, opacity, order}
+  stickerLayers:[], // {id, url, premium, x, y, scale, rotation, opacity, order}
+
+  // ---- Custom filter editor state (not reset with settings) ----
+  editingCustomFilterId:null,
+  editingCustomFilterName:null
 };
 
 /* ==========================================================================
@@ -87,6 +91,7 @@ const layerHandlesEl=$('layerHandles');
 const processingOverlay=$('processingOverlay');
 const infoStrip=$('infoStrip'), infoOrigRes=$('infoOrigRes'), infoOutRes=$('infoOutRes'), infoFileSize=$('infoFileSize'), infoZoom=$('infoZoom');
 const bottomTabs=$('bottomTabs'), toolSheet=$('toolSheet'), sheetBackdrop=$('sheetBackdrop'), sheetBody=$('sheetBody'), sheetTitle=$('sheetTitle');
+const sheetLivePreviewCanvas=$('sheetLivePreview'), sheetLivePreviewWrap=$('sheetLivePreviewWrap');
 const warnBanner=$('warnBanner'), warnText=$('warnText');
 const stage=$('stage');
 const exportOverlay=$('exportOverlay'), progressCircle=$('progressCircle'), progressPercent=$('progressPercent'), progressFill=$('progressFill'), exportStatusText=$('exportStatusText'), exportGlow=$('exportGlow');
@@ -1340,6 +1345,8 @@ function sizeCanvasesToPreview(){
 }
 
 let quickRenderQueued=false;
+let previewWorkerBusy=false;
+let previewWorkerDirty=false;
 function renderPreview(force){
   if(!S.previewCanvas) return;
   if(canvasBefore.width!==S.previewCanvas.width) sizeCanvasesToPreview();
@@ -1351,20 +1358,69 @@ function renderPreview(force){
   quickRenderQueued=true;
   requestAnimationFrame(()=>{
     quickRenderQueued=false;
-    try{
-      const srcCtx=S.previewCanvas.getContext('2d');
-      const imgData=srcCtx.getImageData(0,0,S.previewCanvas.width,S.previewCanvas.height);
-      const result=px_pipeline({data:new Uint8ClampedArray(imgData.data),width:imgData.width,height:imgData.height},S.settings);
-      ctxAfter.putImageData(new ImageData(new Uint8ClampedArray(result.data),result.width,result.height),0,0);
+    runPreviewPipeline();
+  });
+  updateOutputResInfo();
+}
+
+// Mirrors the current after-canvas into the small thumbnail that lives
+// inside the tool sheet, so people always have a live, unobstructed view
+// of what their adjustment looks like — even while the sheet covers most
+// of the screen. Uses a "cover" fit (scaled + center-cropped) so the
+// thumbnail always fills its box without distorting the photo.
+function updateSheetLivePreview(){
+  if(!sheetLivePreviewCanvas || !sheetLivePreviewWrap) return;
+  if(!S.previewCanvas || !canvasAfter.width || !canvasAfter.height) return;
+  const cw=sheetLivePreviewWrap.clientWidth||300, ch=sheetLivePreviewWrap.clientHeight||118;
+  if(cw<=0||ch<=0) return;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const targetW=Math.round(cw*dpr), targetH=Math.round(ch*dpr);
+  if(sheetLivePreviewCanvas.width!==targetW) sheetLivePreviewCanvas.width=targetW;
+  if(sheetLivePreviewCanvas.height!==targetH) sheetLivePreviewCanvas.height=targetH;
+  const ctx=sheetLivePreviewCanvas.getContext('2d');
+  const srcW=canvasAfter.width, srcH=canvasAfter.height;
+  const scale=Math.max(targetW/srcW, targetH/srcH);
+  const dw=srcW*scale, dh=srcH*scale;
+  const dx=(targetW-dw)/2, dy=(targetH-dh)/2;
+  ctx.clearRect(0,0,targetW,targetH);
+  ctx.drawImage(canvasAfter,dx,dy,dw,dh);
+}
+
+// Runs the (potentially expensive) pixel pipeline off the main thread via
+// the same Worker used for export, instead of blocking the UI thread on
+// every slider tick. If a new edit comes in while a worker job is still
+// running, we don't queue it — we just mark "dirty" and re-run once with
+// whatever the latest settings are when the current job finishes. This
+// keeps slider dragging smooth instead of piling up a backlog of stale
+// frames on slow/mobile devices.
+function runPreviewPipeline(){
+  if(!S.previewCanvas) return;
+  if(previewWorkerBusy){ previewWorkerDirty=true; return; }
+  previewWorkerBusy=true;
+  try{
+    const srcCtx=S.previewCanvas.getContext('2d');
+    const imgData=srcCtx.getImageData(0,0,S.previewCanvas.width,S.previewCanvas.height);
+    const settingsSnapshot={...S.settings};
+    processWithWorker(imgData,settingsSnapshot).then(resultImageData=>{
+      ctxAfter.putImageData(resultImageData,0,0);
       // Let community.js draw overlay layers on top of the live preview
       // (fire-and-forget — this is just the interactive preview, export
       // below awaits the same hooks so the final file is always correct).
       runOverlayHooks(ctxAfter, canvasAfter.width, canvasAfter.height, false);
-    }catch(err){
+      updateSheetLivePreview();
+    }).catch(err=>{
       console.error('Render error',err);
-    }
-  });
-  updateOutputResInfo();
+    }).finally(()=>{
+      previewWorkerBusy=false;
+      if(previewWorkerDirty){
+        previewWorkerDirty=false;
+        runPreviewPipeline();
+      }
+    });
+  }catch(err){
+    previewWorkerBusy=false;
+    console.error('Render error',err);
+  }
 }
 
 /* ==========================================================================
@@ -2185,6 +2241,7 @@ function openSheet(tabKey){
   TABS[tabKey].render();
   toolSheet.classList.add('active');
   sheetBackdrop.classList.add('active');
+  requestAnimationFrame(updateSheetLivePreview);
   // Layer drag-handles (mosaic/sticker) only make sense while the
   // Text & Mosaic (Edit) sheet is open.
   if(tabKey==='edit'){
@@ -2482,7 +2539,27 @@ const colorPresets={
 const PREMIUM_COLOR=['Vivid','Cinematic','HDR Look'];
 
 function renderColorTab(){
+  const editingId=S.editingCustomFilterId;
+  const creatingNew=!editingId && S.creatingCustomFilter;
   sheetBody.innerHTML=`
+    ${editingId?`
+    <div class="control-row" style="background:rgba(124,92,255,.12);border:1px solid rgba(124,92,255,.35);border-radius:12px;padding:10px 12px;">
+      <div class="control-label"><b><i class="fa-solid fa-pen"></i> Mengedit: ${escHtml(S.editingCustomFilterName||'')}</b></div>
+      <p style="font-size:11.5px;color:var(--text-dim);margin:2px 0 10px;">Atur slider di bawah sesuai selera, lalu simpan perubahannya.</p>
+      <div class="chip-row">
+        <button class="chip" id="btnUpdateCustomFilter"><i class="fa-solid fa-check"></i> Update Filter</button>
+        <button class="chip" id="btnCancelEditFilter"><i class="fa-solid fa-xmark"></i> Batal</button>
+      </div>
+    </div>`:''}
+    ${creatingNew?`
+    <div class="control-row" style="background:rgba(45,212,191,.12);border:1px solid rgba(45,212,191,.35);border-radius:12px;padding:10px 12px;">
+      <div class="control-label"><b><i class="fa-solid fa-wand-magic-sparkles"></i> Membuat Filter Baru</b></div>
+      <p style="font-size:11.5px;color:var(--text-dim);margin:2px 0 10px;">Geser slider di bawah ini sampai hasilnya sesuai selera — filter tidak bisa disimpan sebelum ada yang diubah.</p>
+      <div class="chip-row">
+        <button class="chip" id="btnFinishCreateFilter"><i class="fa-solid fa-check"></i> Lanjut ke Nama &amp; Simpan</button>
+        <button class="chip" id="btnCancelCreateFilterColor"><i class="fa-solid fa-xmark"></i> Batal</button>
+      </div>
+    </div>`:''}
     <div class="control-row"><div class="control-label"><b>Preset</b></div>
       <div class="preset-grid" id="colorPresetGrid">
         ${Object.keys(colorPresets).map(k=>{
@@ -2524,10 +2601,43 @@ function renderColorTab(){
       if(PREMIUM_COLOR.includes(k)) toast(`Preset "${k}" — fitur PRO, 1 credit terpakai saat export`);
     });
   });
+  if(editingId){
+    $('btnUpdateCustomFilter').addEventListener('click',()=>{
+      updateCustomFilterFromCurrent(editingId,S.editingCustomFilterName);
+      const savedName=S.editingCustomFilterName;
+      S.editingCustomFilterId=null; S.editingCustomFilterName=null;
+      haptic();
+      openSheet('filter');
+      toast(`Filter "${savedName}" berhasil diperbarui.`,'success');
+    });
+    $('btnCancelEditFilter').addEventListener('click',()=>{
+      S.editingCustomFilterId=null; S.editingCustomFilterName=null;
+      haptic();
+      openSheet('filter');
+    });
+  }
+  if(creatingNew){
+    $('btnFinishCreateFilter').addEventListener('click',()=>{
+      if(settingsAreDefaultColor()){
+        toast('Geser minimal satu slider dulu sebelum lanjut.');
+        return;
+      }
+      haptic();
+      openSheet('filter');
+    });
+    $('btnCancelCreateFilterColor').addEventListener('click',()=>{
+      S.creatingCustomFilter=false;
+      haptic();
+      openSheet('filter');
+    });
+  }
 }
 
 /* ---- FILTER TAB ---- */
 const COLOR_FIELDS=['brightness','contrast','saturation','vibrance','temperature','highlights','shadows','gamma','hue'];
+function settingsAreDefaultColor(){
+  return COLOR_FIELDS.every(f=>Number(S.settings[f]||0)===Number(defaultSettings[f]||0));
+}
 const filterPresets={
   'Original':      { premium:false, brightness:0, contrast:0,   saturation:0,    vibrance:0,  temperature:0,   highlights:0,   shadows:0,   gamma:0,   hue:0 },
   'B&W Classic':   { premium:false, brightness:0, contrast:10,  saturation:-100, vibrance:0,  temperature:0,   highlights:0,   shadows:0,   gamma:0,   hue:0 },
@@ -2566,6 +2676,54 @@ function deleteCustomFilter(id){
   saveCustomFiltersList(list);
   return list;
 }
+function updateCustomFilterFromCurrent(id,name){
+  const list=loadCustomFilters();
+  const idx=list.findIndex(f=>f.id===id);
+  if(idx===-1) return list;
+  const settings={}; COLOR_FIELDS.forEach(f=>{ settings[f]=S.settings[f]; });
+  list[idx]={...list[idx], name:(name||list[idx].name).slice(0,40), settings};
+  saveCustomFiltersList(list);
+  return list;
+}
+
+/* ---- .ptlab file export/import — lets people share filters they made ---- */
+function ptlabSafeFilename(name){
+  const safe=String(name||'filter').trim().replace(/[^a-z0-9\-_ ]/gi,'').replace(/\s+/g,'-');
+  return (safe||'filter').slice(0,60);
+}
+function downloadFilterAsPtlab(name,settings){
+  const payload={ format:'ptlab', app:'UFN AI Photo Editor', version:1, name:String(name||'Filter Saya').slice(0,40), settings };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=ptlabSafeFilename(name)+'.ptlab';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+function importPtlabFile(file){
+  if(!file) return;
+  if(!/\.ptlab$/i.test(file.name) && file.type!=='application/json'){
+    toast('File harus berformat .ptlab.','error'); return;
+  }
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    let data;
+    try{ data=JSON.parse(e.target.result); }catch(err){ toast('File .ptlab tidak valid atau rusak.','error'); return; }
+    if(!data || typeof data!=='object' || typeof data.settings!=='object'){
+      toast('File .ptlab tidak valid.','error'); return;
+    }
+    const settings={};
+    COLOR_FIELDS.forEach(f=>{ const v=Number(data.settings[f]); settings[f]=isFinite(v)?v:0; });
+    const name=String(data.name||file.name.replace(/\.ptlab$/i,'')||'Filter Impor').slice(0,40);
+    const list=loadCustomFilters();
+    list.push({ id:'cf'+Date.now()+Math.random().toString(36).slice(2,6), name, settings });
+    saveCustomFiltersList(list);
+    renderFilterTab(); haptic();
+    toast(`Filter "${name}" berhasil diimpor.`,'success');
+  };
+  reader.onerror=()=>toast('Gagal membaca file .ptlab.','error');
+  reader.readAsText(file);
+}
 
 function renderFilterTab(){
   const customFilters=loadCustomFilters();
@@ -2588,16 +2746,47 @@ function renderFilterTab(){
     <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Filter bertanda <b>PRO</b> memakai 1 credit saat export. Filter Gratis tidak memakai credit sama sekali.</p>
 
     <div class="control-row" style="margin-top:6px;">
-      <div class="control-label"><b><i class="fa-solid fa-wand-magic-sparkles"></i> Filter Kamu Sendiri</b></div>
+      <div class="control-label"><b><i class="fa-solid fa-wand-magic-sparkles"></i> Buat Filter Sendiri</b></div>
+      ${S.creatingCustomFilter ? `
+        <p style="font-size:11.5px;color:var(--text-dim);line-height:1.5;margin:0 0 10px;">
+          Sudah atur warnanya di tab Color? Kasih nama filter ini, lalu simpan. Filter buatanmu selalu gratis.
+        </p>
+        <input type="text" id="customFilterNameInput" placeholder="Nama filter, mis: Sunset Vibes" maxlength="40"
+          style="width:100%;box-sizing:border-box;padding:11px 13px;margin-bottom:8px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#fff;font-size:13px;outline:none;">
+        <div class="chip-row">
+          <button class="chip" id="btnBackToColorAdjust"><i class="fa-solid fa-sliders"></i> Atur Warna Lagi</button>
+          <button class="chip" id="btnCancelCreateFilterTab"><i class="fa-solid fa-xmark"></i> Batal</button>
+        </div>
+        <div class="chip-row" style="margin-top:8px;">
+          <button class="chip" id="btnSaveCustomFilter"><i class="fa-solid fa-floppy-disk"></i> Simpan untuk Saya</button>
+          <button class="chip" id="btnDownloadCustomFilter"><i class="fa-solid fa-download"></i> Download .ptlab</button>
+        </div>
+      ` : `
+        <p style="font-size:11.5px;color:var(--text-dim);line-height:1.5;margin:0 0 10px;">
+          Bikin filter dari nol: kamu akan diarahkan ke tab Color untuk mengatur Brightness, Contrast, Saturation, Vibrance, Temperature, Highlight, Shadow, Gamma &amp; Hue sendiri — baru dinamai dan disimpan.
+        </p>
+        <button class="chip" id="btnStartCreateFilter"><i class="fa-solid fa-plus"></i> Buat Filter Baru</button>
+      `}
+    </div>
+
+    <div class="control-row" style="margin-top:2px;">
+      <div class="control-label"><b><i class="fa-solid fa-file-import"></i> Pakai Filter Orang Lain</b></div>
       <p style="font-size:11.5px;color:var(--text-dim);line-height:1.5;margin:0 0 10px;">
-        Atur slider di tab Color sesuai selera, lalu simpan sebagai filter sendiri. Filter buatanmu tersimpan di perangkat ini dan selalu gratis.
+        Punya file <b>.ptlab</b> dari teman atau kreator lain? Upload di sini untuk langsung memakainya.
       </p>
-      <button class="chip" id="btnSaveCustomFilter"><i class="fa-solid fa-plus"></i> Simpan dari Color Saat Ini</button>
+      <button class="chip" id="btnImportPtlab"><i class="fa-solid fa-upload"></i> Upload File .ptlab</button>
+      <input type="file" id="ptlabFileInput" accept=".ptlab,application/json" style="display:none;">
+    </div>
+
+    <div class="control-row" style="margin-top:2px;">
+      <div class="control-label"><b>Filter Custom Kamu</b></div>
     </div>
     <div class="preset-grid" id="customFilterGrid">
       ${customFilters.length ? customFilters.map(cf=>`
         <button class="preset-card ${S.settings.activeFilter==='custom:'+cf.id?'active':''}" data-custom="${cf.id}" style="position:relative;">
+          <span data-edit="${cf.id}" style="position:absolute;top:6px;left:6px;color:var(--text-dim);padding:2px 5px;"><i class="fa-solid fa-pen"></i></span>
           <span data-del="${cf.id}" style="position:absolute;top:6px;right:6px;color:var(--text-dim);padding:2px 5px;"><i class="fa-solid fa-xmark"></i></span>
+          <span data-dl="${cf.id}" style="position:absolute;bottom:6px;right:6px;color:var(--text-dim);padding:2px 5px;"><i class="fa-solid fa-download"></i></span>
           <b>${escHtml(cf.name)}</b><span>Custom</span>
         </button>`).join('') : '<p class="pe-layer-empty">Belum ada filter custom.</p>'}
     </div>
@@ -2614,17 +2803,56 @@ function renderFilterTab(){
       toast(p.premium?`Filter "${k}" — fitur PRO, 1 credit terpakai saat export`:`Filter "${k}" diterapkan`);
     });
   });
-  $('btnSaveCustomFilter').addEventListener('click',()=>{
-    if(!S.previewCanvas){ toast('Pilih foto dulu.'); return; }
-    const name=(prompt('Nama filter custom kamu:','Filter Saya '+(customFilters.length+1))||'').trim();
-    if(!name) return;
-    addCustomFilterFromCurrent(name.slice(0,40));
-    renderFilterTab(); haptic();
-    toast(`Filter "${name}" disimpan di perangkat ini.`,'success');
+  function currentFilterNameOrDefault(){
+    const typed=($('customFilterNameInput').value||'').trim();
+    return typed || 'Filter Saya '+(customFilters.length+1);
+  }
+  if(S.creatingCustomFilter){
+    $('btnBackToColorAdjust').addEventListener('click',()=>{
+      haptic(); openSheet('color');
+    });
+    $('btnCancelCreateFilterTab').addEventListener('click',()=>{
+      S.creatingCustomFilter=false;
+      renderFilterTab(); haptic();
+    });
+    $('btnSaveCustomFilter').addEventListener('click',()=>{
+      if(!S.previewCanvas){ toast('Pilih foto dulu.'); return; }
+      if(settingsAreDefaultColor()){ toast('Atur dulu warnanya di tab Color sebelum menyimpan filter.'); return; }
+      const name=currentFilterNameOrDefault().slice(0,40);
+      addCustomFilterFromCurrent(name);
+      S.creatingCustomFilter=false;
+      renderFilterTab(); haptic();
+      toast(`Filter "${name}" disimpan di perangkat ini.`,'success');
+    });
+    $('btnDownloadCustomFilter').addEventListener('click',()=>{
+      if(!S.previewCanvas){ toast('Pilih foto dulu.'); return; }
+      if(settingsAreDefaultColor()){ toast('Atur dulu warnanya di tab Color sebelum mengunduh filter.'); return; }
+      const name=currentFilterNameOrDefault().slice(0,40);
+      const settings={}; COLOR_FIELDS.forEach(f=>{ settings[f]=S.settings[f]; });
+      downloadFilterAsPtlab(name,settings);
+      haptic();
+      toast(`Mengunduh "${ptlabSafeFilename(name)}.ptlab"...`,'success');
+    });
+  }else{
+    $('btnStartCreateFilter').addEventListener('click',()=>{
+      if(!S.previewCanvas){ toast('Pilih foto dulu.'); return; }
+      COLOR_FIELDS.forEach(f=>{ S.settings[f]=defaultSettings[f]; });
+      S.settings.activeFilter=null; S.settings.activeFilterPremium=false; S.settings.activePreset=null;
+      S.creatingCustomFilter=true;
+      renderPreview(true); haptic();
+      openSheet('color');
+      toast('Foto direset ke Original — geser slider untuk membuat filter barumu.');
+    });
+  }
+  $('btnImportPtlab').addEventListener('click',()=>{ $('ptlabFileInput').click(); });
+  $('ptlabFileInput').addEventListener('change',(e)=>{
+    const file=e.target.files[0];
+    if(file) importPtlabFile(file);
+    e.target.value='';
   });
   sheetBody.querySelectorAll('#customFilterGrid [data-custom]').forEach(card=>{
     card.addEventListener('click',(e)=>{
-      if(e.target.closest('[data-del]')) return; // handled separately below
+      if(e.target.closest('[data-del],[data-edit],[data-dl]')) return; // handled separately below
       const id=card.dataset.custom;
       const cf=customFilters.find(f=>f.id===id);
       if(!cf) return;
@@ -2636,11 +2864,38 @@ function renderFilterTab(){
       toast(`Filter "${cf.name}" diterapkan`);
     });
   });
+  sheetBody.querySelectorAll('#customFilterGrid [data-edit]').forEach(editBtn=>{
+    editBtn.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      if(!S.previewCanvas){ toast('Pilih foto dulu untuk mengedit filter.'); return; }
+      const id=editBtn.dataset.edit;
+      const cf=customFilters.find(f=>f.id===id);
+      if(!cf) return;
+      COLOR_FIELDS.forEach(f=>{ S.settings[f]=cf.settings[f]||0; });
+      S.editingCustomFilterId=id;
+      S.editingCustomFilterName=cf.name;
+      renderPreview(true); haptic();
+      openSheet('color');
+      toast(`Mengedit "${cf.name}" — atur slider lalu tekan Update Filter.`);
+    });
+  });
+  sheetBody.querySelectorAll('#customFilterGrid [data-dl]').forEach(dlBtn=>{
+    dlBtn.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      const id=dlBtn.dataset.dl;
+      const cf=customFilters.find(f=>f.id===id);
+      if(!cf) return;
+      downloadFilterAsPtlab(cf.name,cf.settings);
+      haptic();
+      toast(`Mengunduh "${ptlabSafeFilename(cf.name)}.ptlab"...`,'success');
+    });
+  });
   sheetBody.querySelectorAll('#customFilterGrid [data-del]').forEach(delBtn=>{
     delBtn.addEventListener('click',(e)=>{
       e.stopPropagation();
       const id=delBtn.dataset.del;
       if(S.settings.activeFilter==='custom:'+id){ S.settings.activeFilter=null; }
+      if(S.editingCustomFilterId===id){ S.editingCustomFilterId=null; S.editingCustomFilterName=null; }
       deleteCustomFilter(id);
       renderFilterTab(); haptic();
     });
