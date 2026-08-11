@@ -6,6 +6,7 @@
    ========================================================================== */
 const CONFIG = {
   FREE_DAILY_LIMIT: 20,
+  MAX_VIDEO_SIZE_MB: 300,
   // Get a free key at https://api.imgbb.com/ (login with Google, click
   // "Add API key"), then paste it below. Used only to host the user's
   // uploaded profile photo — no other images are ever sent anywhere.
@@ -13,6 +14,58 @@ const CONFIG = {
 };
 const BUY_CREDIT_URL =
   "chat.html?uid=BQy28ApNQPYPTRLQNKOgx5VmX9z1";
+
+/* ==========================================================================
+   0b. RESOLUTION TIERS (replaces the old 1x-5x upscale factor system).
+   Applies to BOTH photo export and video export. "maxDim" is the target
+   long edge in pixels — the image/video is scaled (up or down) to fit
+   that long edge while keeping its own aspect ratio, same idea as the
+   old scaleCap logic in loadImage().
+   ========================================================================== */
+const RESOLUTION_TIERS = [
+  { key:'hd', label:'HD',  maxDim:1280, badge:'FREE',    badgeClass:'free' },
+  { key:'2k', label:'2K',  maxDim:2560, badge:'FREE',    badgeClass:'free' },
+  { key:'4k', label:'4K',  maxDim:3840, badge:'3×/HARI', badgeClass:'limited', dailyLimit:3 },
+  { key:'8k', label:'8K',  maxDim:7680, badge:'PRO',     badgeClass:'pro' }
+];
+function getTier(key){ return RESOLUTION_TIERS.find(t=>t.key===key) || RESOLUTION_TIERS[0]; }
+const RES_USAGE_PREFIX='ufnai_res_usage_';
+function getResUsage(tierKey){
+  const tier=getTier(tierKey);
+  if(!tier.dailyLimit) return {date:todayStr(), count:0, limit:Infinity};
+  let obj=null;
+  try{
+    const raw=localStorage.getItem(RES_USAGE_PREFIX+tierKey);
+    if(raw) obj=JSON.parse(raw);
+  }catch(err){ obj=null; }
+  const today=todayStr();
+  if(!obj || obj.date!==today){
+    obj={date:today, count:0};
+    try{ localStorage.setItem(RES_USAGE_PREFIX+tierKey, JSON.stringify(obj)); }catch(err){}
+  }
+  obj.limit=tier.dailyLimit;
+  return obj;
+}
+function incrementResUsage(tierKey){
+  const tier=getTier(tierKey);
+  if(!tier.dailyLimit) return;
+  const obj=getResUsage(tierKey);
+  obj.count=Math.min(tier.dailyLimit, obj.count+1);
+  try{ localStorage.setItem(RES_USAGE_PREFIX+tierKey, JSON.stringify({date:obj.date, count:obj.count})); }catch(err){}
+}
+// Derives the internal numeric scale factor (used everywhere downstream:
+// upscaleCanvasWithProgress, filename tagging, output-res display, video
+// export canvas sizing) from the currently selected resolution tier + the
+// actual source dimensions, so a small source photo/video is upscaled up
+// to the tier and a large one is downscaled down to it — same behavior
+// the app already had for the old factor-based system.
+function syncScaleFromTier(){
+  const tier=getTier(S.settings.resTier);
+  const longEdge=Math.max(S.origWidth||1, S.origHeight||1);
+  let factor=tier.maxDim/longEdge;
+  factor=clamp(factor, 0.05, 8);
+  S.settings.scale=factor;
+}
 
 // Firebase configuration — used for Authentication and for reading/writing
 // the user's own credit balance. All photo processing (Free AND Premium)
@@ -35,7 +88,7 @@ const firebaseConfig = {
    1. STATE
    ========================================================================== */
 const defaultSettings = {
-  scale:1, sharpen:0, denoise:0,
+  scale:1, resTier:'hd', sharpen:0, denoise:0,
   brightness:0, contrast:0, saturation:0, vibrance:0,
   temperature:0, highlights:0, shadows:0, gamma:0, hue:0,
   faceDetail:false, activePreset:null, activeSharpenPreset:null, activeDenoisePreset:null,
@@ -45,6 +98,11 @@ const defaultSettings = {
 
 const S = {
   file:null,
+  mediaType:'image',      // 'image' | 'video'
+  videoEl:null,            // hidden <video> element, source of truth for video playback
+  videoPlaying:false,
+  videoRafHandle:null,
+  videoDuration:0,
   originalCanvas:null,   // full resolution source (capped)
   previewCanvas:null,    // downscaled working canvas for interactive edits
   settings:{...defaultSettings},
@@ -58,7 +116,7 @@ const S = {
   worker:null, workerBusy:false,
   origWidth:0, origHeight:0,
   exportFormat:'jpeg', exportQuality:'high', exportUpscale:2,
-  prefs:{ previewQuality:'balanced', autoOnLoad:false, hwAccel:true, useGpu:true, darkMode:true, haptic:false, defaultFormat:'jpeg', defaultQuality:'high', defaultUpscale:2 },
+  prefs:{ previewQuality:'balanced', autoOnLoad:false, hwAccel:true, useGpu:true, darkMode:true, haptic:false, defaultFormat:'jpeg', defaultQuality:'high', defaultUpscale:'2k' },
   renderPending:false, renderHiQPending:false,
   exportCancelled:false,
 
@@ -86,6 +144,7 @@ const $ = (id)=>document.getElementById(id);
 const emptyState=$('emptyState'), viewport=$('viewport'), dropHint=$('dropHint');
 const fileInput=$('fileInput'), canvasHolder=$('canvasHolder');
 const canvasBefore=$('canvasBefore'), canvasAfter=$('canvasAfter');
+const sourceVideo=$('sourceVideo'), videoPlayToggle=$('videoPlayToggle'), videoPlayIcon=$('videoPlayIcon');
 const compareDivider=$('compareDivider'), compareHandle=$('compareHandle');
 const layerHandlesEl=$('layerHandles');
 const processingOverlay=$('processingOverlay');
@@ -1204,7 +1263,35 @@ const MAX_SOURCE_DIM=8192;
 const MAX_PREVIEW_DIM=1100;
 const LARGE_IMAGE_MP=24;
 
-function pickFile(){ fileInput.click(); }
+function pickFile(){ openFileChooser(); }
+
+/* ---- CUSTOM FILE-TYPE CHOOSER (Foto / Video) ----
+   Shown instead of jumping straight to the OS file picker, so the person
+   explicitly picks Foto or Video first; the native <input type=file> is
+   then filtered to just that type before it opens. */
+const fileChooserBackdrop=$('fileChooserBackdrop');
+function openFileChooser(){
+  if(fileChooserBackdrop) fileChooserBackdrop.classList.add('active');
+}
+function closeFileChooser(){
+  if(fileChooserBackdrop) fileChooserBackdrop.classList.remove('active');
+}
+if(fileChooserBackdrop){
+  fileChooserBackdrop.addEventListener('click',(e)=>{ if(e.target===fileChooserBackdrop) closeFileChooser(); });
+  $('fileChooserClose').addEventListener('click',closeFileChooser);
+  $('fcOptionPhoto').addEventListener('click',()=>{
+    fileInput.accept='image/*';
+    closeFileChooser();
+    fileInput.click();
+    haptic();
+  });
+  $('fcOptionVideo').addEventListener('click',()=>{
+    fileInput.accept='video/*';
+    closeFileChooser();
+    fileInput.click();
+    haptic();
+  });
+}
 
 fileInput.addEventListener('change',(e)=>{
   const f=e.target.files && e.target.files[0];
@@ -1214,13 +1301,18 @@ fileInput.addEventListener('change',(e)=>{
 
 function handleFile(file){
   try{
-    // Accept any image type the browser itself is willing to decode
-    // (JPG, PNG, WEBP, GIF, BMP, AVIF, and HEIC/HEIF on browsers that
-    // support it, etc.) instead of a hardcoded whitelist. If the browser
-    // can't actually decode the file, img.onerror below catches it with a
-    // clear message rather than silently failing.
-    if(file.type && !/^image\//.test(file.type)){
-      toast('File ini bukan gambar. Pilih file foto (JPG, PNG, WEBP, HEIC, dll).','error');
+    const isVideo = file.type && /^video\//.test(file.type);
+    const isImage = file.type && /^image\//.test(file.type);
+    if(!isVideo && !isImage){
+      toast('File ini bukan gambar atau video. Pilih file foto (JPG, PNG, WEBP, HEIC) atau video (MP4, WEBM, MOV).','error');
+      return;
+    }
+    if(isVideo){
+      if(file.size>CONFIG.MAX_VIDEO_SIZE_MB*1024*1024){
+        toast(`File video terlalu besar (maks ${CONFIG.MAX_VIDEO_SIZE_MB}MB).`,'error');
+        return;
+      }
+      handleVideoFile(file);
       return;
     }
     if(file.size>60*1024*1024){
@@ -1245,7 +1337,131 @@ function handleFile(file){
   }
 }
 
+/* ---- VIDEO UPLOAD/PREVIEW ----
+   HD video editing runs the same slider pipeline (brightness/contrast/
+   saturation/temperature/hue) applied in real time via a cheap CSS canvas
+   filter (ctx.filter) while the hidden <video> element plays, redrawn onto
+   the very same canvasAfter used for photos — so pan/zoom/compare and all
+   overlay layers (text/mosaic/stickers/watermark) keep working unchanged.
+   Heavy per-pixel ops (sharpen/denoise/face-detail) are photo-only; they
+   are skipped for video since running them per-frame in real time isn't
+   feasible in-browser. */
+function handleVideoFile(file){
+  stopVideoPreviewLoop();
+  const url=URL.createObjectURL(file);
+  sourceVideo.src=url;
+  sourceVideo.onloadedmetadata=()=>{
+    try{ loadVideo(sourceVideo,file); }
+    catch(err){ console.error(err); toast('Gagal memproses video ini.','error'); }
+  };
+  sourceVideo.onerror=()=>toast('Format video ini tidak bisa dibuka oleh browser kamu. Coba convert ke MP4 dulu.','error');
+}
+
+function loadVideo(video,file){
+  S.file=file;
+  S.mediaType='video';
+  const w=video.videoWidth, h=video.videoHeight;
+  if(!w||!h){ toast('Video tidak valid.','error'); return; }
+
+  S.origWidth=w; S.origHeight=h;
+  S.settings={...defaultSettings};
+  S.history=[cloneSettings(S.settings)];
+  S.historyIndex=0;
+  S.textLayers=[]; S.mosaicLayers=[]; S.stickerLayers=[];
+  if(layerHandlesEl) layerHandlesEl.innerHTML='';
+  setQuickCompare(false);
+  S.baMode='after';
+  applyBaMode();
+  runNewPhotoHooks();
+  syncScaleFromTier();
+
+  // originalCanvas/previewCanvas stay in sync as "current video frame"
+  // snapshots so every existing photo-pipeline function (recalcPreviewCanvas,
+  // runOverlayHooks, saveProjectRecord thumbnails, etc.) keeps working as-is.
+  const oc=document.createElement('canvas'); oc.width=w; oc.height=h;
+  S.originalCanvas=oc;
+  const pScale=Math.min(MAX_PREVIEW_DIM/Math.max(w,h),1);
+  const pc=document.createElement('canvas');
+  pc.width=Math.max(1,Math.round(w*pScale)); pc.height=Math.max(1,Math.round(h*pScale));
+  S.previewCanvas=pc;
+
+  emptyState.style.display='none';
+  viewport.classList.add('active');
+  bottomTabs.classList.add('active');
+  infoStrip.classList.add('active');
+
+  infoOrigRes.textContent=`${w} × ${h}`;
+  updateOutputResInfo();
+  infoFileSize.textContent=formatBytes(file.size);
+
+  fitToScreen();
+  sizeCanvasesToPreview();
+  video.currentTime=0;
+  video.muted=true; // display preview muted; audio is still captured on export
+  videoPlayToggle.style.display='flex';
+  drawVideoFrame();
+  startVideoPreviewLoop();
+  updateUndoRedoButtons();
+  toast('Video berhasil dimuat','success');
+  runPhotoReadyHooks();
+}
+
+function buildVideoFilterString(s){
+  // Real-time CSS-filter approximation of the color sliders, cheap enough
+  // to run every animation frame (unlike the full px_pipeline used for photo
+  // export, which does a getImageData/putImageData pass per call).
+  const brightness=1 + (s.brightness||0)/100;
+  const contrast=1 + (s.contrast||0)/100;
+  const saturate=1 + ((s.saturation||0)+(s.vibrance||0)*0.6)/100;
+  const hue=(s.hue||0);
+  return `brightness(${clamp(brightness,0.2,3)}) contrast(${clamp(contrast,0.2,3)}) saturate(${clamp(saturate,0,3)}) hue-rotate(${hue}deg)`;
+}
+
+function drawVideoFrame(){
+  if(!sourceVideo || S.mediaType!=='video') return;
+  ctxAfter.save();
+  ctxAfter.clearRect(0,0,canvasAfter.width,canvasAfter.height);
+  ctxAfter.filter=buildVideoFilterString(S.settings);
+  ctxAfter.drawImage(sourceVideo,0,0,canvasAfter.width,canvasAfter.height);
+  ctxAfter.filter='none';
+  ctxBefore.clearRect(0,0,canvasBefore.width,canvasBefore.height);
+  ctxBefore.drawImage(sourceVideo,0,0,canvasBefore.width,canvasBefore.height);
+  runOverlayHooks(ctxAfter, canvasAfter.width, canvasAfter.height, false);
+  ctxAfter.restore();
+}
+
+function startVideoPreviewLoop(){
+  function tick(){
+    drawVideoFrame();
+    S.videoRafHandle=requestAnimationFrame(tick);
+  }
+  cancelAnimationFrame(S.videoRafHandle);
+  S.videoRafHandle=requestAnimationFrame(tick);
+}
+function stopVideoPreviewLoop(){
+  if(S.videoRafHandle) cancelAnimationFrame(S.videoRafHandle);
+  S.videoRafHandle=null;
+  if(sourceVideo){ sourceVideo.pause(); }
+  S.videoPlaying=false;
+  if(videoPlayIcon) videoPlayIcon.setAttribute('d','M8 5v14l11-7L8 5Z');
+}
+videoPlayToggle && videoPlayToggle.addEventListener('click',()=>{
+  if(S.mediaType!=='video') return;
+  if(S.videoPlaying){
+    sourceVideo.pause();
+    S.videoPlaying=false;
+    videoPlayIcon.setAttribute('d','M8 5v14l11-7L8 5Z'); // play triangle
+  }else{
+    sourceVideo.play();
+    S.videoPlaying=true;
+    videoPlayIcon.setAttribute('d','M8 5h3v14H8V5Zm5 0h3v14h-3V5Z'); // pause bars
+  }
+  haptic();
+});
+
 function loadImage(img,file){
+  stopVideoPreviewLoop();
+  S.mediaType='image';
   S.file=file;
   let w=img.naturalWidth, h=img.naturalHeight;
   if(!w||!h){ toast('Gambar tidak valid.','error'); return; }
@@ -1290,6 +1506,8 @@ function loadImage(img,file){
   S.baMode='after';
   applyBaMode();
   runNewPhotoHooks(); // let community.js clear its overlay layers / applied-preset state
+  syncScaleFromTier();
+  videoPlayToggle.style.display='none';
 
   emptyState.style.display='none';
   viewport.classList.add('active');
@@ -1348,6 +1566,7 @@ let quickRenderQueued=false;
 let previewWorkerBusy=false;
 let previewWorkerDirty=false;
 function renderPreview(force){
+  if(S.mediaType==='video'){ updateOutputResInfo(); return; } // video preview runs on its own rAF loop (drawVideoFrame)
   if(!S.previewCanvas) return;
   if(canvasBefore.width!==S.previewCanvas.width) sizeCanvasesToPreview();
 
@@ -2226,7 +2445,7 @@ function wireSlider(key,onInput){
 
 const TABS={
   auto:{title:'Auto Enhance', render:renderAutoTab},
-  upscale:{title:'Upscale & Aspect Ratio', render:renderUpscaleTab},
+  upscale:{title:'Resolusi & Aspect Ratio', render:renderUpscaleTab},
   detail:{title:'Sharpen & Denoise', render:renderDetailTab},
   color:{title:'Color Enhance', render:renderColorTab},
   filter:{title:'Filters', render:renderFilterTab},
@@ -2314,6 +2533,7 @@ function sampleLuminanceStats(){
 }
 
 function autoEnhance(){
+  if(S.mediaType==='video'){ toast('Auto Enhance belum tersedia untuk video — atur Color secara manual.'); return; }
   showProcessing(true);
   setTimeout(()=>{
     try{
@@ -2341,9 +2561,7 @@ function autoEnhance(){
   },30);
 }
 
-/* ---- UPSCALE TAB (with 10x and Aspect Ratio) ---- */
-const upscaleOptions = [1,2,3,4,5];
-const PREMIUM_UPSCALE_MIN = 3; // 1-2x = free, 3-5x = premium (1 credit)
+/* ---- RESOLUTION TAB (tier-based: HD/2K/4K/8K, replaces old 1x-5x) + Aspect Ratio ---- */
 const aspectRatios = [
   {label:'Original', w:0, h:0, icon:'<i class="fa-solid fa-arrows-rotate"></i>'},
   {label:'1:1', w:1, h:1, icon:'<i class="fa-regular fa-square"></i>'},
@@ -2361,17 +2579,29 @@ function premiumBadgeHtml(){
 
 function renderUpscaleTab(){
   const w=S.origWidth,h=S.origHeight;
-  let scaleGrid = '<div class="scale-grid">';
-  upscaleOptions.forEach(val => {
-    const active = S.settings.scale===val ? 'active' : '';
-    const premium = val>=PREMIUM_UPSCALE_MIN;
-    scaleGrid += `<button class="scale-card ${active} ${premium?'is-premium':''}" data-scale="${val}">
-      ${premium?premiumBadgeHtml():''}
-      <div class="sc-x">${val}×</div>
-      <div class="sc-res">${Math.round(w*val)} × ${Math.round(h*val)}</div>
+  const isVideo=S.mediaType==='video';
+
+  let tierGrid='<div class="res-tier-grid">';
+  RESOLUTION_TIERS.forEach(tier=>{
+    const active=S.settings.resTier===tier.key ? 'active':'';
+    const factor=tier.maxDim/Math.max(w,h,1);
+    const ow=Math.round(w*factor), oh=Math.round(h*factor);
+    let subLabel;
+    if(tier.dailyLimit){
+      const usage=getResUsage(tier.key);
+      subLabel=`${Math.max(0,tier.dailyLimit-usage.count)}× tersisa hari ini`;
+    }else if(tier.badgeClass==='pro'){
+      subLabel='1 credit / export';
+    }else{
+      subLabel=`${ow}×${oh}`;
+    }
+    tierGrid+=`<button class="res-tier-card ${active}" data-tier="${tier.key}">
+      <span class="tier-badge ${tier.badgeClass}">${tier.badge}</span>
+      <div class="sc-x">${tier.label}</div>
+      <div class="tier-sub">${subLabel}</div>
     </button>`;
   });
-  scaleGrid += '</div>';
+  tierGrid+='</div>';
 
   const currentRatio = S.settings.aspectRatio;
   let aspectGrid = '<div class="aspect-grid">';
@@ -2390,10 +2620,10 @@ function renderUpscaleTab(){
   sheetBody.innerHTML=`
     <div class="free-usage-strip" id="freeUsageStrip">${usage.count} / ${CONFIG.FREE_DAILY_LIMIT} FREE USED TODAY</div>
     <div class="control-row">
-      <div class="control-label"><b>Upscale Factor</b></div>
-      ${scaleGrid}
+      <div class="control-label"><b>Resolusi ${isVideo?'Video':'Foto'}</b></div>
+      ${tierGrid}
     </div>
-    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> 3×–5× adalah fitur <b>PRO</b> — 1 credit terpakai saat export.</p>
+    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> HD &amp; 2K gratis tanpa batas. 4K gratis 3× per hari. 8K khusus <b>PRO</b> — 1 credit terpakai saat export.</p>
     <div class="control-row">
       <div class="control-label"><b>Aspect Ratio</b></div>
       ${aspectGrid}
@@ -2402,17 +2632,30 @@ function renderUpscaleTab(){
       Resolusi akhir dan rasio aspek diterapkan saat export. Preview menyesuaikan rasio aspek yang dipilih.
     </p>`;
 
-  sheetBody.querySelectorAll('.scale-card').forEach(card=>{
+  sheetBody.querySelectorAll('.res-tier-card').forEach(card=>{
     card.addEventListener('click',()=>{
-      S.settings.scale=parseInt(card.dataset.scale,10);
+      const key=card.dataset.tier;
+      const tier=getTier(key);
+      if(tier.dailyLimit){
+        const usage=getResUsage(key);
+        if(usage.count>=tier.dailyLimit){
+          toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Coba lagi besok atau pakai 8K PRO.`,'error');
+          return;
+        }
+      }
+      S.settings.resTier=key;
+      syncScaleFromTier();
       renderUpscaleTab();
       updateOutputResInfo();
       pushHistory();
       haptic();
-      if(S.settings.scale>=PREMIUM_UPSCALE_MIN){
-        toast(`Upscale ${S.settings.scale}× dipilih — fitur PRO, 1 credit terpakai saat export`);
+      if(tier.badgeClass==='pro'){
+        toast(`Resolusi ${tier.label} dipilih — fitur PRO, 1 credit terpakai saat export`);
+      }else if(tier.dailyLimit){
+        const usage=getResUsage(key);
+        toast(`Resolusi ${tier.label} dipilih — ${Math.max(0,tier.dailyLimit-usage.count)}× gratis tersisa hari ini`);
       }else{
-        toast(`Upscale ${S.settings.scale}× dipilih — akan diterapkan saat export`);
+        toast(`Resolusi ${tier.label} dipilih — akan diterapkan saat export`);
       }
     });
   });
@@ -2485,6 +2728,12 @@ const PREMIUM_SHARPEN=['Sharp','Ultra Sharp'];
 const PREMIUM_DENOISE=['Low','Medium','High'];
 
 function renderDetailTab(){
+  if(S.mediaType==='video'){
+    sheetBody.innerHTML=`<p style="font-size:13px;color:var(--text-dim);line-height:1.6;padding:20px 4px;">
+      Sharpen &amp; Denoise adalah fitur khusus foto (per-pixel, terlalu berat untuk diproses real-time per frame video) — tidak tersedia untuk video.
+    </p>`;
+    return;
+  }
   sheetBody.innerHTML=`
     <div class="control-row"><div class="control-label"><b>Sharpen Preset</b></div>
       <div class="chip-row" id="sharpenChips">
@@ -2904,6 +3153,12 @@ function renderFilterTab(){
 
 /* ---- FACE TAB (fully Premium) ---- */
 function renderFaceTab(){
+  if(S.mediaType==='video'){
+    sheetBody.innerHTML=`<p style="font-size:13px;color:var(--text-dim);line-height:1.6;padding:20px 4px;">
+      Face Detail adalah fitur khusus foto — tidak tersedia untuk video.
+    </p>`;
+    return;
+  }
   sheetBody.innerHTML=`
     <div class="toggle-row">
       <div><b>Face Detail</b> ${premiumBadgeHtml()}<span>Penajaman &amp; noise reduction aman, diterapkan secara menyeluruh</span></div>
@@ -3219,15 +3474,17 @@ function wireLayerHandleDrag(handle,type,id){
 /* ---- EXPORT TAB ---- */
 function renderExportTab(){
   const q=S.exportQuality;
+  const isVideo=S.mediaType==='video';
+  const tier=getTier(S.settings.resTier);
   sheetBody.innerHTML=`
-    <div class="control-row"><div class="control-label"><b>Format</b></div>
+    <div class="control-row" style="${isVideo?'display:none;':''}"><div class="control-label"><b>Format</b></div>
       <div class="format-row">
         <button class="chip ${S.exportFormat==='jpeg'?'active':''}" data-fmt="jpeg">JPG</button>
         <button class="chip ${S.exportFormat==='png'?'active':''}" data-fmt="png">PNG</button>
         <button class="chip ${S.exportFormat==='webp'?'active':''}" data-fmt="webp">WEBP</button>
       </div>
     </div>
-    <div class="control-row" id="qualityRow" style="${S.exportFormat==='png'?'display:none;':''}">
+    <div class="control-row" id="qualityRow" style="${(isVideo||S.exportFormat==='png')?'display:none;':''}">
       <div class="control-label"><b>Quality</b><span class="val" id="val_quality">${qualityToPercent(q)}%</span></div>
       <input type="range" id="slider_quality" min="50" max="100" step="1" value="${qualityToPercent(q)}">
       <div class="quality-preset-row">
@@ -3236,9 +3493,10 @@ function renderExportTab(){
         <button class="chip ${q==='max'?'active':''}" data-q="max">Maximum</button>
       </div>
     </div>
+    ${isVideo?`<p style="font-size:12px;color:var(--text-dim);line-height:1.5;margin:0 0 10px;">Video diexport sebagai <b>WebM</b> pada resolusi <b>${tier.label}</b>, lengkap dengan overlay &amp; watermark.</p>`:''}
     <button class="export-btn" id="btnExport">
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      Download Enhanced Photo
+      Download Enhanced ${isVideo?'Video':'Photo'}
     </button>
     <div class="filename-preview" id="filenamePreview">${buildFilename()}</div>
   `;
@@ -3272,10 +3530,13 @@ function qualityToPercent(q){
   return 85;
 }
 function buildFilename(){
-  const ext=S.exportFormat==='jpeg'?'jpg':S.exportFormat;
-  const scaleTag=S.settings.scale>1?`-${S.settings.scale}x`:'';
   const ratioTag=S.settings.aspectRatio?`-${S.settings.aspectRatio.width}x${S.settings.aspectRatio.height}`:'';
-  return `photo-enhanced${scaleTag}${ratioTag}.${ext}`;
+  const tierTag=`-${getTier(S.settings.resTier).label}`;
+  if(S.mediaType==='video'){
+    return `video-enhanced${tierTag}${ratioTag}.webm`;
+  }
+  const ext=S.exportFormat==='jpeg'?'jpg':S.exportFormat;
+  return `photo-enhanced${tierTag}${ratioTag}.${ext}`;
 }
 
 /* ==========================================================================
@@ -3421,7 +3682,7 @@ function isColorPremiumActive(){
 }
 function isPremiumActive(){
   const s=S.settings;
-  if(s.scale>=PREMIUM_UPSCALE_MIN) return true;
+  if(s.resTier==='8k') return true;
   if(s.sharpen>45) return true;      // Soft(15)/Natural(35)=free, Sharp(60)/Ultra Sharp(85)=premium
   if(s.denoise>0) return true;       // Off=free, Low/Medium/High=premium
   if(s.faceDetail) return true;      // Face Detail is fully premium
@@ -3465,8 +3726,21 @@ async function chargeCreditIfNeeded(){
   }
 }
 
+function checkResolutionQuota(){
+  const tier=getTier(S.settings.resTier);
+  if(tier.dailyLimit){
+    const usage=getResUsage(tier.key);
+    if(usage.count>=tier.dailyLimit){
+      toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Coba lagi besok atau pakai 8K PRO.`,'error');
+      return false;
+    }
+  }
+  return true;
+}
+
 async function exportImage(){
-  if(!S.originalCanvas){ toast('Pilih foto terlebih dahulu.'); return; }
+  if(!S.originalCanvas){ toast(S.mediaType==='video'?'Pilih video terlebih dahulu.':'Pilih foto terlebih dahulu.'); return; }
+  if(S.mediaType==='video'){ return exportVideo(); }
 
   const usesPremium=isPremiumActive();
   if(usesPremium){
@@ -3482,6 +3756,7 @@ async function exportImage(){
       return;
     }
   }
+  if(!checkResolutionQuota()) return;
 
   S.exportCancelled = false;
 
@@ -3522,6 +3797,7 @@ async function exportImage(){
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),4000);
       if(!usesPremium){ incrementFreeUsage(); refreshFreeUsageUI(); }
+      incrementResUsage(S.settings.resTier);
       saveProjectRecord(finalCanvas, a.download);
       toast(usesPremium?'Foto PRO berhasil diunduh (1 credit terpakai)':'Foto berhasil diunduh','success');
     }, mime, S.exportFormat==='png'?undefined:qualityValue);
@@ -3539,6 +3815,155 @@ $('exportCancelBtn').addEventListener('click',()=>{
   exportOverlay.classList.remove('active');
   toast('Export dibatalkan.');
 });
+
+/* ==========================================================================
+   11b. VIDEO EXPORT — MediaRecorder-based, real-time re-encode.
+   The source video plays through once at normal speed; every frame is
+   drawn (with the same CSS-filter color pipeline + overlay hooks used in
+   drawVideoFrame) onto an off-screen canvas sized to the chosen resolution
+   tier, and canvas.captureStream() is recorded via MediaRecorder. Audio is
+   captured straight from the source video element and merged into the
+   recorded stream. Output format is WebM (VP9/Opus) since that's what
+   MediaRecorder can reliably produce fully client-side in the browser —
+   there is no server-side transcoding step in this app.
+   ========================================================================== */
+function pickVideoMimeType(){
+  const candidates=[
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm'
+  ];
+  for(const c of candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return 'video/webm';
+}
+
+async function exportVideo(){
+  if(!sourceVideo || !sourceVideo.duration){ toast('Video belum siap.'); return; }
+  if(!window.MediaRecorder){ toast('Browser ini tidak mendukung export video.','error'); return; }
+
+  const usesPremium=isPremiumActive();
+  if(usesPremium){
+    if(!S.uid){ toast('Login untuk menggunakan fitur PRO.'); return; }
+    if(S.credits===null){ toast('Menunggu data akun. Coba lagi sebentar.','error'); return; }
+    if(S.credits<=0){ openOutOfCreditModal(); return; }
+  }else{
+    const usage=getFreeUsage();
+    if(usage.count>=CONFIG.FREE_DAILY_LIMIT){
+      toast(`Batas FREE harian tercapai (${CONFIG.FREE_DAILY_LIMIT}/${CONFIG.FREE_DAILY_LIMIT}). Coba lagi besok atau gunakan fitur PRO.`,'error');
+      return;
+    }
+  }
+  if(!checkResolutionQuota()) return;
+
+  stopVideoPreviewLoop();
+  S.exportCancelled=false;
+  exportOverlay.classList.add('active');
+  startExportGlow();
+  updateExportProgress(0,'Mempersiapkan video...');
+
+  // Target output size for the chosen resolution tier (long edge = tier.maxDim).
+  const tier=getTier(S.settings.resTier);
+  const srcW=S.origWidth, srcH=S.origHeight;
+  const longEdge=Math.max(srcW,srcH);
+  let outW=Math.round(srcW*(tier.maxDim/longEdge));
+  let outH=Math.round(srcH*(tier.maxDim/longEdge));
+  if(Math.max(outW,outH)>MAX_CANVAS_DIM){
+    const s=MAX_CANVAS_DIM/Math.max(outW,outH);
+    outW=Math.round(outW*s); outH=Math.round(outH*s);
+  }
+
+  const outCanvas=document.createElement('canvas');
+  outCanvas.width=outW; outCanvas.height=outH;
+  const outCtx=outCanvas.getContext('2d');
+
+  // Build the output media stream: video track from the canvas + (if
+  // available) the audio track captured directly from the source video.
+  const canvasStream=outCanvas.captureStream(30);
+  try{
+    if(typeof sourceVideo.captureStream==='function'){
+      const vidStream=sourceVideo.captureStream();
+      vidStream.getAudioTracks().forEach(track=>canvasStream.addTrack(track));
+    }
+  }catch(err){ console.warn('Audio capture not available:', err); }
+
+  const mimeType=pickVideoMimeType();
+  const recorder=new MediaRecorder(canvasStream,{mimeType, videoBitsPerSecond:Math.min(24_000_000, Math.round(outW*outH*0.12))});
+  const chunks=[];
+  recorder.ondataavailable=(e)=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
+
+  const finished=new Promise((resolve,reject)=>{
+    recorder.onstop=()=>resolve();
+    recorder.onerror=(e)=>reject(e.error||new Error('MediaRecorder error'));
+  });
+
+  let rafId=null;
+  function renderFrame(){
+    if(S.exportCancelled){ return; }
+    outCtx.save();
+    outCtx.filter=buildVideoFilterString(S.settings);
+    outCtx.drawImage(sourceVideo,0,0,outW,outH);
+    outCtx.filter='none';
+    outCtx.restore();
+    // Bake overlay/watermark layers into the exported frame too.
+    runOverlayHooks(outCtx, outW, outH, true);
+    const pct=Math.min(96, 5 + (sourceVideo.currentTime/sourceVideo.duration)*90);
+    updateExportProgress(pct, `Merender video... ${Math.round(sourceVideo.currentTime)}s / ${Math.round(sourceVideo.duration)}s`);
+    if(!sourceVideo.paused && !sourceVideo.ended && !S.exportCancelled){
+      rafId=requestAnimationFrame(renderFrame);
+    }
+  }
+
+  try{
+    sourceVideo.currentTime=0;
+    await new Promise(res=>{ sourceVideo.onseeked=res; });
+    recorder.start(250);
+    await sourceVideo.play();
+    rafId=requestAnimationFrame(renderFrame);
+
+    await new Promise((resolve)=>{
+      sourceVideo.onended=resolve;
+      // Safety timeout slightly longer than the clip in case 'ended' doesn't fire.
+      setTimeout(resolve,(sourceVideo.duration*1000)+4000);
+    });
+
+    if(S.exportCancelled){
+      cancelAnimationFrame(rafId);
+      recorder.stop();
+      exportOverlay.classList.remove('active');
+      toast('Export dibatalkan.');
+      startVideoPreviewLoop();
+      return;
+    }
+
+    cancelAnimationFrame(rafId);
+    updateExportProgress(97,'Menyiapkan file...');
+    recorder.stop();
+    await finished;
+
+    const blob=new Blob(chunks,{type:mimeType.split(';')[0]});
+    if(usesPremium){
+      const charge=await chargeCreditIfNeeded();
+      if(!charge.ok){ exportOverlay.classList.remove('active'); startVideoPreviewLoop(); return; }
+    }
+    exportOverlay.classList.remove('active');
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=buildFilename();
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),8000);
+    if(!usesPremium){ incrementFreeUsage(); refreshFreeUsageUI(); }
+    incrementResUsage(S.settings.resTier);
+    toast(usesPremium?`Video PRO (${tier.label}) berhasil diunduh (1 credit terpakai)`:`Video ${tier.label} berhasil diunduh`,'success');
+  }catch(err){
+    console.error(err);
+    exportOverlay.classList.remove('active');
+    toast('Export video gagal. Coba resolusi lebih rendah.','error');
+  }finally{
+    startVideoPreviewLoop();
+  }
+}
 
 function showProcessing(show,label){
   processingOverlay.classList.toggle('active',show);
@@ -3596,6 +4021,8 @@ $('btnRedo').addEventListener('click',redo);
 function resetAll(){
   if(!S.previewCanvas){ toast('Belum ada foto untuk direset.'); return; }
   S.settings={...defaultSettings};
+  syncScaleFromTier();
+  if(S.mediaType==='video'){ refreshOpenSheet(); pushHistory(); toast('Pengaturan direset ke original'); haptic(); return; }
   renderPreview(true);
   pushHistory();
   refreshOpenSheet();
@@ -3624,7 +4051,7 @@ function syncSettingsUI(){
   $('setPreviewQuality').value=S.prefs.previewQuality;
   $('setDefaultFormat').value=S.prefs.defaultFormat;
   $('setDefaultQuality').value=S.prefs.defaultQuality;
-  $('setDefaultUpscale').value=String(S.prefs.defaultUpscale);
+  $('setDefaultUpscale').value=S.prefs.defaultUpscale;
   ['autoOnLoad','hwAccel','useGpu','darkMode','haptic'].forEach(key=>{
     const el=document.querySelector(`.switch[data-key="${key}"]`);
     if(el) el.classList.toggle('on',!!S.prefs[key]);
@@ -3643,7 +4070,7 @@ document.querySelectorAll('.switch[data-key]').forEach(sw=>{
 $('setPreviewQuality').addEventListener('change',(e)=>{ S.prefs.previewQuality=e.target.value; savePrefs(); });
 $('setDefaultFormat').addEventListener('change',(e)=>{ S.prefs.defaultFormat=e.target.value; S.exportFormat=e.target.value; savePrefs(); });
 $('setDefaultQuality').addEventListener('change',(e)=>{ S.prefs.defaultQuality=e.target.value; S.exportQuality=e.target.value; savePrefs(); });
-$('setDefaultUpscale').addEventListener('change',(e)=>{ S.prefs.defaultUpscale=parseInt(e.target.value,10); savePrefs(); });
+$('setDefaultUpscale').addEventListener('change',(e)=>{ S.prefs.defaultUpscale=e.target.value; savePrefs(); });
 
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', S.prefs.darkMode?'dark':'light');
@@ -3658,7 +4085,8 @@ function loadPrefs(){
   }catch(err){}
   S.exportFormat=S.prefs.defaultFormat;
   S.exportQuality=S.prefs.defaultQuality;
-  S.settings.scale=S.prefs.defaultUpscale||1;
+  S.settings.resTier=S.prefs.defaultUpscale||'hd';
+  syncScaleFromTier();
   applyTheme();
 }
 

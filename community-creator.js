@@ -101,6 +101,7 @@ ready(function(){
     onModal('#peThumbPick','click',()=>modalCard.querySelector('#peThumbFile').click());
     onModal('#peThumbFile','change',(e)=>{
       const f=e.target.files[0]; if(!f) return;
+      if(!/^image\//.test(f.type)){ B.toast('Hanya file gambar yang bisa dipakai sebagai thumbnail preset. Video tidak didukung.','error'); return; }
       thumbFile=f;
       const url=URL.createObjectURL(f);
       modalCard.querySelector('#peThumbPick').innerHTML=`<img src="${url}">`;

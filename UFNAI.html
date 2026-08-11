@@ -103,11 +103,42 @@
       <p>Upscale, sharpen, tambah teks, mosaic &amp; stiker — semua diproses langsung di perangkatmu. Cocok untuk foto, poster, sampai logo. Foto Anda tidak pernah meninggalkan perangkat ini, pastikan perangkat anda cukup kuat untuk mengexport hasil edit.</p>
       <button class="btn-primary" id="btnChoosePhoto">
         <svg viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0-5-5m5 5 5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18v1.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-        Choose Photo
+        Choose Photo or Video
       </button>
     </div>
 
-    <div class="dropzone-hint" id="dropHint">Lepaskan foto di sini untuk mengunggah</div>
+    <!-- custom file-type chooser (replaces the raw OS file picker as the
+         first step, so people explicitly choose Foto vs Video before the
+         native picker opens filtered to just that type) -->
+    <div class="modal-backdrop" id="fileChooserBackdrop">
+      <div class="filechooser-card" id="fileChooserCard">
+        <div class="filechooser-grabber"></div>
+        <div class="filechooser-head">
+          <div>
+            <h3>Pilih Media</h3>
+            <p>Mau edit foto atau video?</p>
+          </div>
+          <button class="icon-btn" id="fileChooserClose" type="button" aria-label="Tutup">&times;</button>
+        </div>
+        <div class="filechooser-grid">
+          <button class="filechooser-option fc-photo" id="fcOptionPhoto" type="button">
+            <span class="fc-icon"><i class="fa-regular fa-image"></i></span>
+            <b>Foto</b>
+            <span>JPG &middot; PNG &middot; WEBP &middot; HEIC</span>
+            <span class="fc-tag fc-tag--free">HD &ndash; 8K</span>
+          </button>
+          <button class="filechooser-option fc-video" id="fcOptionVideo" type="button">
+            <span class="fc-icon"><i class="fa-solid fa-video"></i></span>
+            <b>Video</b>
+            <span>MP4 &middot; WEBM &middot; MOV</span>
+            <span class="fc-tag fc-tag--limit">Maks 300MB</span>
+          </button>
+        </div>
+        <button class="filechooser-cancel" id="fileChooserCancel" type="button">Batal</button>
+      </div>
+    </div>
+
+    <div class="dropzone-hint" id="dropHint">Lepaskan foto atau video di sini untuk mengunggah</div>
 
     <!-- viewport with before/after canvases -->
     <div id="viewport">
@@ -120,6 +151,10 @@
       <div id="canvasHolder">
         <canvas id="canvasBefore"></canvas>
         <canvas id="canvasAfter"></canvas>
+        <video id="sourceVideo" playsinline muted style="display:none;"></video>
+        <button id="videoPlayToggle" class="video-play-toggle" type="button" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none"><path id="videoPlayIcon" d="M8 5v14l11-7L8 5Z" fill="currentColor"/></svg>
+        </button>
         <span class="ba-tag before" id="beforeTag">BEFORE</span>
         <span class="ba-tag after" id="afterTag">AFTER</span>
         <div id="compareDivider"></div>
@@ -173,7 +208,7 @@
   <!-- ================= BOTTOM TAB NAV ================= -->
   <nav class="bottom-tabs" id="bottomTabs">
     <button class="tab-btn active" data-tab="auto"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3 1.9 4.5L18 9.3l-4.1 1.8L12 15.5l-1.9-4.4L6 9.3l4.1-1.8L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M19 15l.7 1.6L21.3 17l-1.6.7L19 19.3l-.7-1.6L16.7 17l1.6-.7L19 15Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Auto</button>
-    <button class="tab-btn" data-tab="upscale"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Upscale</button>
+    <button class="tab-btn" data-tab="upscale"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Resolusi</button>
     <button class="tab-btn" data-tab="detail"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12h4l2-7 4 14 2-7h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Detail</button>
     <button class="tab-btn" data-tab="color"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="8.5" r="1.6" fill="currentColor"/><circle cx="8.2" cy="13.5" r="1.6" fill="currentColor"/><circle cx="15.8" cy="13.5" r="1.6" fill="currentColor"/></svg>Color</button>
     <button class="tab-btn" data-tab="filter"><svg viewBox="0 0 24 24" fill="none"><path d="M4 5h16M4 12h16M4 19h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="5" r="2" fill="currentColor"/><circle cx="9" cy="12" r="2" fill="currentColor"/><circle cx="17" cy="19" r="2" fill="currentColor"/></svg>Filter</button>
@@ -182,7 +217,7 @@
     <button class="tab-btn" data-tab="export"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Export</button>
   </nav>
 
-  <input type="file" id="fileInput" accept="image/*" hidden>
+  <input type="file" id="fileInput" accept="image/*,video/*" hidden>
 
 </div><!-- /pageHome -->
 
@@ -427,8 +462,8 @@
       <div class="toggle-row"><div><b>Default Quality</b></div>
         <select class="select-field" id="setDefaultQuality" style="width:130px;"><option value="standard">Standard</option><option value="high" selected>High Quality</option><option value="max">Maximum</option></select>
       </div>
-      <div class="toggle-row"><div><b>Default Upscale</b></div>
-        <select class="select-field" id="setDefaultUpscale" style="width:90px;"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select>
+      <div class="toggle-row"><div><b>Default Resolusi</b></div>
+        <select class="select-field" id="setDefaultUpscale" style="width:90px;"><option value="hd">HD</option><option value="2k" selected>2K</option><option value="4k">4K</option><option value="8k">8K</option></select>
       </div>
     </div>
 
