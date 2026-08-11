@@ -509,8 +509,8 @@ function defaultLayerName(clip){
   return clip.type ? (clip.type.charAt(0).toUpperCase()+clip.type.slice(1)) : 'Layer';
 }
 
-/* Fill in any missing layer fields on a single clip. Never overwrites
-   a field that's already present, so re-running is always safe (idempotent). */
+/* Fills in any missing layer AND transform fields on a single clip. Never
+   overwrites a field that's already present, so re-running is always safe. */
 function ensureLayerFields(clip, zIndex){
   if(clip.name===undefined) clip.name = defaultLayerName(clip);
   if(clip.visible===undefined) clip.visible = true;
@@ -524,6 +524,16 @@ function ensureLayerFields(clip, zIndex){
   if(!clip.effects) clip.effects=[];
   if(!clip.keyframes) clip.keyframes=[];
   if(!clip.adjust) clip.adjust={};
+  // Fase 2 — full transform engine fields (additive on top of the existing
+  // x/y/scale/rotation/opacity/width/height baseTransform, nothing removed).
+  if(!clip.baseTransform) clip.baseTransform = {x:0,y:0,scale:1,rotation:0,opacity:1,width:100,height:100};
+  const bt = clip.baseTransform;
+  if(bt.scaleX===undefined) bt.scaleX = bt.scale!==undefined? bt.scale : 1;
+  if(bt.scaleY===undefined) bt.scaleY = bt.scale!==undefined? bt.scale : 1;
+  if(bt.anchorX===undefined) bt.anchorX = 0;
+  if(bt.anchorY===undefined) bt.anchorY = 0;
+  if(bt.skewX===undefined) bt.skewX = 0;
+  if(bt.skewY===undefined) bt.skewY = 0;
   return clip;
 }
 
@@ -605,10 +615,21 @@ function buildCssFilter(tf){
 /* draw a media element (video/image) into ctx honoring tf transform + effects */
 function drawMediaWithFX(ctx2d, srcEl, srcW, srcH, boxCX, boxCY, boxW, boxH, fit, tf, seed, t){
   const rect = getFitRect(srcW,srcH,boxW,boxH, fit||'fill');
-  const w = rect.w*(tf.scale||1)*((tf.kfWidth||100)/100);
-  const h = rect.h*(tf.scale||1)*((tf.kfHeight||100)/100);
+  // Fase 2 — non-uniform scale: factor out whatever FX (beat-zoom, punch-zoom,
+  // etc) multiplied the old single tf.scale by, then re-apply that same
+  // multiplier on top of scaleX/scaleY independently. When scaleX===scaleY===
+  // scaleBase (legacy clips / uniform scale, the default) fxRatio*scaleX
+  // reduces to exactly tf.scale, so old projects render pixel-identical.
+  const fxRatio = (tf.scale||1) / (tf.scaleBase||1);
+  const finalScaleX = (tf.scaleX!==undefined? tf.scaleX : (tf.scale||1)) * fxRatio;
+  const finalScaleY = (tf.scaleY!==undefined? tf.scaleY : (tf.scale||1)) * fxRatio;
+  const w = rect.w*finalScaleX*((tf.kfWidth||100)/100);
+  const h = rect.h*finalScaleY*((tf.kfHeight||100)/100);
   const cx = boxCX + (tf.dx||0) + (tf.kfX||0);
   const cy = boxCY + (tf.dy||0) + (tf.kfY||0);
+  // Anchor point as a fraction of the layer's own size (-0.5..0.5, 0=center,
+  // matching the old center-anchored behavior exactly when unset).
+  const ax = (tf.anchorX||0)*w, ay = (tf.anchorY||0)*h;
 
   ctx2d.save();
   // motion trail / echo / ghost / after-image: draw faded offset copies first
@@ -617,7 +638,7 @@ function drawMediaWithFX(ctx2d, srcEl, srcW, srcH, boxCX, boxCY, boxW, boxH, fit
     for(let i=n;i>=1;i--){
       ctx2d.save();
       ctx2d.globalAlpha = a*(1-i/(n+1))*(tf.alpha||1);
-      ctx2d.translate(cx - i*off, cy);
+      ctx2d.translate(cx - i*off - ax, cy - ay);
       ctx2d.rotate((tf.rotation||0)*Math.PI/180);
       try{ ctx2d.drawImage(srcEl, -w/2, -h/2, w, h); }catch(e){}
       ctx2d.restore();
@@ -632,9 +653,13 @@ function drawMediaWithFX(ctx2d, srcEl, srcW, srcH, boxCX, boxCY, boxW, boxH, fit
     ctx2d.translate(cx,cy);
     ctx2d.rotate((tf.rotation||0)*Math.PI/180);
     if(tf.skew) ctx2d.transform(1,0,tf.skew,1,0,0);
+    if(tf.skewX || tf.skewY) ctx2d.transform(1, Math.tan((tf.skewY||0)*Math.PI/180), Math.tan((tf.skewX||0)*Math.PI/180), 1, 0, 0);
+    if(ax||ay) ctx2d.translate(-ax,-ay);
     drawRGBSplitLayer(ctx2d, srcEl, w, h, tf);
   } else {
-    // strip-based rendering for wave / glitch / twist / lens distortions
+    // strip-based rendering for wave / glitch / twist / lens distortions.
+    // Anchor/independent-axis-scale aren't combined with these advanced
+    // distortions yet — they keep using the classic uniform transform.
     ctx2d.translate(cx,cy); ctx2d.rotate((tf.rotation||0)*Math.PI/180);
     const rnd = mulberry32(seed + Math.floor(t*30));
     const stripCount = tf.glitch ? 18 : (tf.waveAmp>0.5? 26: 1);

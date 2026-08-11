@@ -57,7 +57,169 @@ function resizeCanvas(){
   frame.style.width = Math.max(60,fw)+'px';
   frame.style.height = Math.max(60,fh)+'px';
 }
-window.addEventListener('resize', ()=>{ if(App.page==='editor') resizeCanvas(); });
+window.addEventListener('resize', ()=>{ if(App.page==='editor'){ resizeCanvas(); updateGizmo(); } });
+
+/* ============================================================
+   Fase 2 — Transform Engine: interactive preview gizmo
+   ============================================================ */
+/* Types the gizmo currently supports. Text/subtitle render through their
+   own x/y/rotation style system (see buildTextStylePanel) rather than
+   clip.baseTransform, so they aren't wired into the gizmo yet. */
+const GIZMO_SUPPORTED_TYPES = ['video','image','shape','sticker'];
+
+function getClipScreenBox(clip){
+  const canvas = $('#previewCanvas');
+  if(!canvas) return null;
+  const W = canvas.width, H = canvas.height;
+  const localTime = clamp(Editor.curTime - clip.start, 0, clip.duration);
+  const bt = getClipTransformAtTime(clip, localTime);
+  let w, h;
+  if(clip.type==='video' || clip.type==='image'){
+    const media = App.mediaCache[clip.mediaId];
+    const mw = (media && media.width) || W, mh = (media && media.height) || H;
+    const rect = getFitRect(mw, mh, W, H, clip.fit||'fill');
+    w = rect.w * (bt.scaleX!==undefined?bt.scaleX:bt.scale) * ((bt.width||100)/100);
+    h = rect.h * (bt.scaleY!==undefined?bt.scaleY:bt.scale) * ((bt.height||100)/100);
+  } else if(clip.type==='shape'){
+    w = W*0.4 * (bt.scaleX!==undefined?bt.scaleX:bt.scale) * ((bt.width||100)/100);
+    h = H*0.2 * (bt.scaleY!==undefined?bt.scaleY:bt.scale) * ((bt.height||100)/100);
+  } else if(clip.type==='sticker'){
+    const fontSize = W*0.18;
+    w = fontSize*(bt.scaleX!==undefined?bt.scaleX:bt.scale);
+    h = fontSize*(bt.scaleY!==undefined?bt.scaleY:bt.scale);
+  } else {
+    return null;
+  }
+  return { cx: W/2+(bt.x||0), cy: H/2+(bt.y||0), w, h, rotation: bt.rotation||0, anchorX: bt.anchorX||0, anchorY: bt.anchorY||0 };
+}
+
+function updateGizmo(){
+  const host = $('#transformGizmo');
+  if(!host) return;
+  host.innerHTML='';
+  const clip = getSelectedClip();
+  if(!clip || clip.locked || GIZMO_SUPPORTED_TYPES.indexOf(clip.type)===-1) return;
+  const box = getClipScreenBox(clip);
+  if(!box) return;
+  const canvas = $('#previewCanvas'), frame = $('#previewFrame');
+  if(!canvas.width || !frame.clientWidth) return;
+  const ratio = frame.clientWidth / canvas.width;
+
+  const cssCx = box.cx*ratio, cssCy = box.cy*ratio, cssW = box.w*ratio, cssH = box.h*ratio;
+  const axCss = box.anchorX*cssW, ayCss = box.anchorY*cssH;
+
+  // Center guide lines (used by snapping while dragging).
+  const guideV=document.createElement('div'); guideV.className='gizmo-guide v'; guideV.style.left=(frame.clientWidth/2)+'px'; guideV.id='gizmoGuideV';
+  const guideH=document.createElement('div'); guideH.className='gizmo-guide h'; guideH.style.top=(frame.clientHeight/2)+'px'; guideH.id='gizmoGuideH';
+  host.appendChild(guideV); host.appendChild(guideH);
+
+  const boxEl=document.createElement('div'); boxEl.className='gizmo-box';
+  boxEl.style.left=(cssCx-axCss-cssW/2)+'px';
+  boxEl.style.top=(cssCy-ayCss-cssH/2)+'px';
+  boxEl.style.width=Math.max(4,cssW)+'px';
+  boxEl.style.height=Math.max(4,cssH)+'px';
+  boxEl.style.transformOrigin = (cssW/2+axCss)+'px '+(cssH/2+ayCss)+'px';
+  boxEl.style.transform = `rotate(${box.rotation}deg)`;
+
+  ['tl','tr','bl','br'].forEach(pos=>{
+    const h=document.createElement('div'); h.className='gizmo-corner '+pos; h.dataset.corner=pos;
+    boxEl.appendChild(h);
+  });
+  const rotHandle=document.createElement('div'); rotHandle.className='gizmo-rotate-handle'; rotHandle.textContent='↻';
+  boxEl.appendChild(rotHandle);
+
+  host.appendChild(boxEl);
+
+  const anchorDot=document.createElement('div'); anchorDot.className='gizmo-anchor-dot';
+  anchorDot.style.left=cssCx+'px'; anchorDot.style.top=cssCy+'px';
+  host.appendChild(anchorDot);
+
+  attachGizmoDrag(boxEl, clip, box, ratio, frame);
+}
+
+function attachGizmoDrag(boxEl, clip, box, ratio, frame){
+  const bt = clip.baseTransform;
+  let mode=null, startClientX=0, startClientY=0;
+  let startBtX=0, startBtY=0, startScaleX=1, startScaleY=1, startRotation=0, startDist=1, startAngle=0;
+  const pivotCssX = frame.clientWidth/2 + (bt.x||0)*ratio;
+  const pivotCssY = frame.clientHeight/2 + (bt.y||0)*ratio;
+
+  function showGuides(snapX, snapY){
+    $('#gizmoGuideV')?.classList.toggle('show', !!snapX);
+    $('#gizmoGuideH')?.classList.toggle('show', !!snapY);
+  }
+
+  function onDown(e, m){
+    e.preventDefault(); e.stopPropagation();
+    mode=m;
+    startClientX=e.clientX; startClientY=e.clientY;
+    startBtX=bt.x||0; startBtY=bt.y||0;
+    startScaleX = bt.scaleX!==undefined?bt.scaleX:bt.scale;
+    startScaleY = bt.scaleY!==undefined?bt.scaleY:bt.scale;
+    startRotation = bt.rotation||0;
+    startDist = Math.max(1, Math.hypot(startClientX-pivotCssX, startClientY-pivotCssY));
+    startAngle = Math.atan2(startClientY-pivotCssY, startClientX-pivotCssX)*180/Math.PI;
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+  function onMove(e){
+    if(!mode) return;
+    if(mode==='move'){
+      let nx = startBtX + (e.clientX-startClientX)/ratio;
+      let ny = startBtY + (e.clientY-startClientY)/ratio;
+      const canvas=$('#previewCanvas');
+      const snapPx = 10/ratio;
+      let snapX=false, snapY=false;
+      if(App.snapEnabled!==false){
+        if(Math.abs(nx)<snapPx){ nx=0; snapX=true; }
+        if(Math.abs(ny)<snapPx){ ny=0; snapY=true; }
+      }
+      bt.x=nx; bt.y=ny;
+      showGuides(snapX, snapY);
+      Editor.renderFrame(Editor.curTime);
+    } else if(mode==='rotate'){
+      const angle = Math.atan2(e.clientY-pivotCssY, e.clientX-pivotCssX)*180/Math.PI;
+      let rot = startRotation + (angle-startAngle);
+      if(App.snapEnabled!==false){
+        const nearest15 = Math.round(rot/15)*15;
+        if(Math.abs(rot-nearest15)<4) rot=nearest15;
+      }
+      bt.rotation = rot;
+      Editor.renderFrame(Editor.curTime);
+    } else if(mode==='scale'){
+      const dist = Math.max(1, Math.hypot(e.clientX-pivotCssX, e.clientY-pivotCssY));
+      const factor = dist/startDist;
+      bt.scaleX = Math.max(0.05, startScaleX*factor);
+      bt.scaleY = Math.max(0.05, startScaleY*factor);
+      Editor.renderFrame(Editor.curTime);
+    }
+  }
+  function onUp(){
+    if(!mode) return;
+    mode=null;
+    showGuides(false,false);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    Editor.renderTimeline();
+    pushUndoSnapshot();
+  }
+
+  boxEl.addEventListener('pointerdown', e=>{
+    if(e.target.classList.contains('gizmo-corner')){ onDown(e,'scale'); }
+    else if(e.target.classList.contains('gizmo-rotate-handle')){ onDown(e,'rotate'); }
+    else { onDown(e,'move'); }
+  });
+}
+
+/* Fase 2 — preview toolbar: Snap / Grid / Safe Area toggles */
+function initPreviewTools(){
+  const bSnap=$('#btnToggleSnap'), bGrid=$('#btnToggleGrid'), bSafe=$('#btnToggleSafeArea');
+  if(App.snapEnabled===undefined) App.snapEnabled=true;
+  bSnap.classList.toggle('active', App.snapEnabled);
+  bSnap.addEventListener('click', ()=>{ App.snapEnabled=!App.snapEnabled; bSnap.classList.toggle('active', App.snapEnabled); });
+  bGrid.addEventListener('click', ()=>{ $('#previewGridOverlay').classList.toggle('hidden'); bGrid.classList.toggle('active'); });
+  bSafe.addEventListener('click', ()=>{ $('#previewSafeArea').classList.toggle('hidden'); bSafe.classList.toggle('active'); });
+}
 
 /* ---------------- Undo / Redo ---------------- */
 function pushUndoSnapshot(){
@@ -412,6 +574,7 @@ function selectClip(id){
   App.selectedClipId = id;
   $$('.clip').forEach(el=> el.classList.toggle('selected', el.dataset.clipId===id));
   showClipTabs();
+  updateGizmo();
 }
 function getSelectedClip(){
   if(!App.selectedClipId) return null;
@@ -428,6 +591,7 @@ function showClipTabs(){
 }
 function hideClipTabs(){
   $('#clipTabsBar').classList.add('hidden');
+  updateGizmo();
 }
 
 /* ---------------- Playback / render loop ---------------- */
@@ -535,6 +699,15 @@ function drawSingleClip(ctx2d, clip, atLocalTimeOverride, canvasW, canvasH){
   const tf = baseTransform();
   tf.dx = tfBase.x; tf.dy = tfBase.y; tf.scale = tfBase.scale; tf.rotation = tfBase.rotation; tf.alpha = tfBase.opacity;
   tf.kfWidth = tfBase.width; tf.kfHeight = tfBase.height; tf.kfX=tfBase.x; tf.kfY=tfBase.y;
+  // Fase 2 — full transform engine: independent scale X/Y, anchor point, skew.
+  // scaleBase is stashed so drawMediaWithFX can factor out whatever beat/zoom
+  // FX multiplied tf.scale by, then re-apply that same multiplier on top of
+  // the (possibly non-uniform) scaleX/scaleY — see drawMediaWithFX for the math.
+  tf.scaleBase = tfBase.scale!==undefined? tfBase.scale : 1;
+  tf.scaleX = tfBase.scaleX!==undefined? tfBase.scaleX : tf.scaleBase;
+  tf.scaleY = tfBase.scaleY!==undefined? tfBase.scaleY : tf.scaleBase;
+  tf.anchorX = tfBase.anchorX||0; tf.anchorY = tfBase.anchorY||0;
+  tf.skewX = tfBase.skewX||0; tf.skewY = tfBase.skewY||0;
 
   const seed = seedFromString(clip.id);
   const beatInfo = nearestBeatDelta(Editor.curTime, App.project.beatMarkers);
@@ -597,12 +770,18 @@ function roundRectP(ctx2d,x,y,w,h,r){
   ctx2d.moveTo(x+r,y); ctx2d.arcTo(x+w,y,x+w,y+h,r); ctx2d.arcTo(x+w,y+h,x,y+h,r); ctx2d.arcTo(x,y+h,x,y,r); ctx2d.arcTo(x,y,x+w,y,r);
 }
 function drawShapeClip(ctx2d, clip, tf, cx, cy, canvasW, canvasH){
-  const w=canvasW*0.4*(tf.scale||1)*((tf.kfWidth||100)/100), h=canvasH*0.2*(tf.scale||1)*((tf.kfHeight||100)/100);
+  const fxRatio = (tf.scale||1) / (tf.scaleBase||1);
+  const sx = (tf.scaleX!==undefined? tf.scaleX : (tf.scale||1)) * fxRatio;
+  const sy = (tf.scaleY!==undefined? tf.scaleY : (tf.scale||1)) * fxRatio;
+  const w=canvasW*0.4*sx*((tf.kfWidth||100)/100), h=canvasH*0.2*sy*((tf.kfHeight||100)/100);
+  const ax=(tf.anchorX||0)*w, ay=(tf.anchorY||0)*h;
   ctx2d.save();
   ctx2d.globalAlpha=clamp(tf.alpha,0,1);
   ctx2d.filter = buildCssFilter(tf);
   ctx2d.translate(cx+(tf.dx||0), cy+(tf.dy||0));
   ctx2d.rotate((tf.rotation||0)*Math.PI/180);
+  if(tf.skewX || tf.skewY) ctx2d.transform(1, Math.tan((tf.skewY||0)*Math.PI/180), Math.tan((tf.skewX||0)*Math.PI/180), 1, 0, 0);
+  if(ax||ay) ctx2d.translate(-ax,-ay);
   ctx2d.fillStyle = clip.color||'#16E8A6';
   ctx2d.beginPath();
   if(clip.shapeType==='Circle'){ ctx2d.arc(0,0,Math.min(w,h)/2,0,Math.PI*2); }
@@ -612,20 +791,31 @@ function drawShapeClip(ctx2d, clip, tf, cx, cy, canvasW, canvasH){
   ctx2d.restore();
 }
 function drawStickerClip(ctx2d, clip, tf, cx, cy, canvasW, canvasH){
+  const fxRatio = (tf.scale||1) / (tf.scaleBase||1);
+  const sx = (tf.scaleX!==undefined? tf.scaleX : (tf.scale||1)) * fxRatio;
+  const sy = (tf.scaleY!==undefined? tf.scaleY : (tf.scale||1)) * fxRatio;
+  const fontSize = canvasW*0.18;
+  const ax=(tf.anchorX||0)*fontSize*sx, ay=(tf.anchorY||0)*fontSize*sy;
   ctx2d.save();
   ctx2d.globalAlpha=clamp(tf.alpha,0,1);
   ctx2d.translate(cx+(tf.dx||0), cy+(tf.dy||0));
   ctx2d.rotate((tf.rotation||0)*Math.PI/180);
-  ctx2d.scale((tf.scale||1),(tf.scale||1));
-  ctx2d.font = `${Math.round(canvasW*0.18)}px sans-serif`;
+  if(tf.skewX || tf.skewY) ctx2d.transform(1, Math.tan((tf.skewY||0)*Math.PI/180), Math.tan((tf.skewX||0)*Math.PI/180), 1, 0, 0);
+  ctx2d.scale(sx, sy);
+  if(ax||ay) ctx2d.translate(-ax/sx,-ay/sy);
+  ctx2d.font = `${Math.round(fontSize)}px sans-serif`;
   ctx2d.textAlign='center'; ctx2d.textBaseline='middle';
   ctx2d.fillText(clip.sticker||'✨',0,0);
   ctx2d.restore();
 }
 
 function getClipTransformAtTime(clip, localTime){
-  if(clip.keyframes && clip.keyframes.length){ return interpKeyframes(clip, localTime); }
-  return Object.assign({}, KF_DEFAULT, clip.baseTransform||{});
+  // Always start from the full baseTransform (which now includes scaleX/scaleY/
+  // anchorX/anchorY/skewX/skewY) so those Fase-2 fields survive even on clips
+  // that have keyframes on the older props (x/y/scale/rotation/opacity/...).
+  const base = Object.assign({}, KF_DEFAULT, clip.baseTransform||{});
+  if(clip.keyframes && clip.keyframes.length){ return Object.assign(base, interpKeyframes(clip, localTime)); }
+  return base;
 }
 
 function syncVideoElement(videoEl, clip, localTime){
@@ -748,6 +938,7 @@ Editor.renderFrame = function(t){
     });
   });
   ctx.restore();
+  updateGizmo();
 };
 
 /* Fase 1 — Layer visibility (hide/show + solo). */
@@ -1161,9 +1352,38 @@ function renderBasicPanel(clip){
   const bt = clip.baseTransform || (clip.baseTransform={x:0,y:0,scale:1,rotation:0,opacity:1,width:100,height:100});
   body.appendChild(sliderRow('Position X', bt.x, -800, 800, 1, (v,commit)=>{ bt.x=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
   body.appendChild(sliderRow('Position Y', bt.y, -800, 800, 1, (v,commit)=>{ bt.y=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
-  body.appendChild(sliderRow('Scale', bt.scale, 0.1, 3, 0.01, (v,commit)=>{ bt.scale=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
+  body.appendChild(sliderRow('Scale', bt.scale, 0.1, 3, 0.01, (v,commit)=>{
+    bt.scale=v;
+    if(App.linkScaleXY!==false){ bt.scaleX=v; bt.scaleY=v; }
+    Editor.renderFrame(Editor.curTime); if(commit){ Editor.renderTimeline(); pushUndoSnapshot(); }
+  }));
   body.appendChild(sliderRow('Rotation', bt.rotation, -180, 180, 1, (v,commit)=>{ bt.rotation=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
   body.appendChild(sliderRow('Opacity', bt.opacity, 0, 1, 0.01, (v,commit)=>{ bt.opacity=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
+
+  // Fase 2 — full transform engine: independent Scale X/Y, Anchor, Skew.
+  // Not wired up for text/subtitle yet — those still render through their
+  // own x/y/rotation style system (see the Text style panel below).
+  if(clip.type!=='text' && clip.type!=='subtitle'){
+    const linkRow=document.createElement('div'); linkRow.className='toggle-row';
+    linkRow.innerHTML = `<span>Kunci Scale X = Scale Y</span><div class="switch ${App.linkScaleXY!==false?'on':''}"></div>`;
+    linkRow.querySelector('.switch').addEventListener('click', function(){
+      App.linkScaleXY = !this.classList.contains('on');
+      this.classList.toggle('on', App.linkScaleXY);
+    });
+    body.appendChild(linkRow);
+    body.appendChild(sliderRow('Scale X', bt.scaleX!==undefined?bt.scaleX:bt.scale, 0.1, 3, 0.01, (v,commit)=>{
+      bt.scaleX=v; if(App.linkScaleXY!==false) bt.scaleY=v;
+      Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot();
+    }));
+    body.appendChild(sliderRow('Scale Y', bt.scaleY!==undefined?bt.scaleY:bt.scale, 0.1, 3, 0.01, (v,commit)=>{
+      bt.scaleY=v; if(App.linkScaleXY!==false) bt.scaleX=v;
+      Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot();
+    }));
+    body.appendChild(sliderRow('Anchor X', bt.anchorX||0, -0.5, 0.5, 0.01, (v,commit)=>{ bt.anchorX=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
+    body.appendChild(sliderRow('Anchor Y', bt.anchorY||0, -0.5, 0.5, 0.01, (v,commit)=>{ bt.anchorY=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
+    body.appendChild(sliderRow('Skew X', bt.skewX||0, -60, 60, 1, (v,commit)=>{ bt.skewX=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
+    body.appendChild(sliderRow('Skew Y', bt.skewY||0, -60, 60, 1, (v,commit)=>{ bt.skewY=v; Editor.renderFrame(Editor.curTime); if(commit) pushUndoSnapshot(); }));
+  }
 
   if(clip.type==='text'||clip.type==='subtitle'){
     const ta=document.createElement('textarea'); ta.className='text-input-area'; ta.value=clip.text.text;
@@ -1712,6 +1932,7 @@ $('#btnSplit').addEventListener('click', ()=>{
   pushUndoSnapshot();
 });
 $('#btnPlayPause').addEventListener('click', ()=> Editor.togglePlay());
+initPreviewTools();
 $('#btnZoomIn').addEventListener('click', ()=>{ App.zoomPxPerSec=clamp(App.zoomPxPerSec*1.4,20,400); Editor.renderTimeline(); });
 $('#btnZoomOut').addEventListener('click', ()=>{ App.zoomPxPerSec=clamp(App.zoomPxPerSec/1.4,20,400); Editor.renderTimeline(); });
 $('#btnUndo').addEventListener('click', doUndo);

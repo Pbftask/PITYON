@@ -98,9 +98,17 @@
     <div class="preview-frame" id="previewFrame">
       <canvas id="previewCanvas"></canvas>
       <div id="textOverlayLayer" class="text-overlay-layer"></div>
+      <div id="previewGridOverlay" class="preview-grid-overlay hidden"></div>
+      <div id="previewSafeArea" class="preview-safe-area hidden"></div>
+      <div id="transformGizmo" class="transform-gizmo"></div>
     </div>
     <button class="icon-btn preview-fullscreen-btn" id="btnFullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg></button>
     <div class="ratio-chip" id="ratioChip">9:16</div>
+    <div class="preview-tools" id="previewTools">
+      <button class="preview-tool-btn active" id="btnToggleSnap" title="Snap">🧲</button>
+      <button class="preview-tool-btn" id="btnToggleGrid" title="Grid">▦</button>
+      <button class="preview-tool-btn" id="btnToggleSafeArea" title="Safe Area">⛶</button>
+    </div>
   </div>
 
   <div class="transport-row">
