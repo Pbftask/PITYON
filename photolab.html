@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>PhotoLab — Editor Foto, Poster & Logo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="photolab-style.css">
+<link rel="stylesheet" href="community.css">
+</head>
+<body>
+<!-- ================= LOGIN GATE (Firebase Email/Password Authentication) ================= -->
+<div class="login-gate" id="loginGate">
+  <div class="login-card">
+    <div class="login-mark">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 8.5C4 7.12 5.12 6 6.5 6h1.2c.4 0 .77-.2.99-.53l.7-1.06A1.5 1.5 0 0 1 10.65 3.7h2.7c.5 0 .97.25 1.26.67l.7 1.06c.22.33.6.53.99.53h1.2C18.88 6 20 7.12 20 8.5v8c0 1.38-1.12 2.5-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12.2" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
+    </div>
+    <h2 id="authTitle">PhotoLab</h2>
+    <p class="login-sub" id="authSub">Masuk atau daftar untuk menyimpan credit PRO kamu.</p>
+
+    <!-- ---- LOGIN VIEW ---- -->
+    <div class="auth-view active" id="viewLogin">
+      <form class="auth-form" id="formLogin" novalidate>
+        <input class="auth-input" type="email" id="loginEmail" placeholder="Email" autocomplete="email" required>
+        <input class="auth-input" type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" required>
+        <button type="submit" class="btn-primary auth-submit" id="btnLoginSubmit" style="width:100%;justify-content:center;">Login</button>
+      </form>
+      <div class="auth-links">
+        <button type="button" class="link-btn" id="linkForgotPassword">Lupa Password?</button>
+      </div>
+      <p class="auth-switch">Belum punya akun? <button type="button" class="link-btn" id="linkGoToRegister">Daftar</button></p>
+    </div>
+
+    <!-- ---- REGISTER VIEW ---- -->
+    <div class="auth-view" id="viewRegister">
+      <form class="auth-form" id="formRegister" novalidate>
+        <input class="auth-input" type="email" id="regEmail" placeholder="Email" autocomplete="email" required>
+        <input class="auth-input" type="password" id="regPassword" placeholder="Password (minimal 8 karakter)" autocomplete="new-password" required>
+        <input class="auth-input" type="password" id="regPasswordConfirm" placeholder="Konfirmasi Password" autocomplete="new-password" required>
+        <button type="submit" class="btn-primary auth-submit" id="btnRegisterSubmit" style="width:100%;justify-content:center;">Daftar</button>
+      </form>
+      <p class="auth-switch">Sudah punya akun? <button type="button" class="link-btn" id="linkGoToLogin">Login</button></p>
+    </div>
+
+    <!-- ---- FORGOT PASSWORD VIEW ---- -->
+    <div class="auth-view" id="viewForgot">
+      <p class="login-sub" style="margin-bottom:14px;">Masukkan email akun kamu. Kami akan mengirimkan link untuk mengatur ulang password.</p>
+      <form class="auth-form" id="formForgot" novalidate>
+        <input class="auth-input" type="email" id="forgotEmail" placeholder="Email" autocomplete="email" required>
+        <button type="submit" class="btn-primary auth-submit" id="btnForgotSubmit" style="width:100%;justify-content:center;">Kirim Link Reset Password</button>
+      </form>
+      <button type="button" class="link-btn auth-back" id="linkForgotToLogin">Kembali ke Login</button>
+    </div>
+
+    <div class="login-error" id="loginError" style="display:none;"></div>
+    <div class="login-success" id="loginSuccess" style="display:none;"></div>
+    <p class="login-foot">Password kamu dilindungi oleh Luminux Authentication dan tidak pernah disimpan di aplikasi ini.</p>
+  </div>
+</div>
+
+<div id="app">
+
+<div id="pageHome" class="page active">
+
+  <!-- ================= HEADER ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" id="brandMark">
+        <svg id="brandMarkIcon" viewBox="0 0 24 24" fill="none"><path d="M4 8.5C4 7.12 5.12 6 6.5 6h1.2c.4 0 .77-.2.99-.53l.7-1.06A1.5 1.5 0 0 1 10.65 3.7h2.7c.5 0 .97.25 1.26.67l.7 1.06c.22.33.6.53.99.53h1.2C18.88 6 20 7.12 20 8.5v8c0 1.38-1.12 2.5-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12.2" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
+        <img id="brandMarkAvatar" class="brand-mark-avatar" alt="" style="display:none;">
+      </div>
+      <div class="brand-text">
+        <b>PhotoLab</b>
+        <span id="brandSub">100% Local Processing</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="credit-pill" id="btnCreditCenter" title="Credit Center" aria-label="Credit Center">
+        <span class="lightning"><i class="fa-solid fa-bolt"></i></span><span id="creditCountText">–</span>
+      </button>
+      <button class="icon-btn" id="btnUndo" title="Undo" aria-label="Undo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 7 4 12l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12h10a6 6 0 0 1 0 12h-1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="btnRedo" title="Redo" aria-label="Redo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M15 7l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12H10a6 6 0 0 0 0 12h1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="btnReset" title="Reset" aria-label="Reset">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 4v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 15a8 8 0 1 0 2-8.5L4 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="btnSettings" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 13.5c.1-.5.1-1 0-1.5l1.7-1.3-2-3.4-2 .8a6.6 6.6 0 0 0-1.3-.75L15.5 5h-4l-.3 2.35c-.47.18-.9.44-1.3.75l-2-.8-2 3.4L7.6 12c-.1.5-.1 1 0 1.5l-1.7 1.3 2 3.4 2-.8c.4.31.83.57 1.3.75L11.5 20h4l.3-2.35c.47-.18.9-.44 1.3-.75l2 .8 2-3.4-1.7-1.3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= MAIN STAGE ================= -->
+  <main class="stage" id="stage">
+
+    <!-- empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-emoji"><i class="fa-regular fa-image"></i></div>
+      <h2>Edit Foto, Poster &amp; Logo</h2>
+      <p>Upscale, sharpen, tambah teks, mosaic &amp; stiker — semua diproses langsung di perangkatmu. Cocok untuk foto, poster, sampai logo. Foto Anda tidak pernah meninggalkan perangkat ini, pastikan perangkat anda cukup kuat untuk mengexport hasil edit.</p>
+      <button class="btn-primary" id="btnChoosePhoto">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 4v12m0 0-5-5m5 5 5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18v1.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        Choose Photo or Video
+      </button>
+    </div>
+
+    <!-- custom file-type chooser (replaces the raw OS file picker as the
+         first step, so people explicitly choose Foto vs Video before the
+         native picker opens filtered to just that type) -->
+    <div class="modal-backdrop" id="fileChooserBackdrop">
+      <div class="filechooser-card" id="fileChooserCard">
+        <div class="filechooser-grabber"></div>
+        <div class="filechooser-head">
+          <div>
+            <h3>Pilih Media</h3>
+            <p>Mau edit foto atau video?</p>
+          </div>
+          <button class="icon-btn" id="fileChooserClose" type="button" aria-label="Tutup">&times;</button>
+        </div>
+        <div class="filechooser-grid">
+          <button class="filechooser-option fc-photo" id="fcOptionPhoto" type="button">
+            <span class="fc-icon"><i class="fa-regular fa-image"></i></span>
+            <b>Foto</b>
+            <span>JPG &middot; PNG &middot; WEBP &middot; HEIC</span>
+            <span class="fc-tag fc-tag--free">HD &ndash; 8K</span>
+          </button>
+          <button class="filechooser-option fc-video" id="fcOptionVideo" type="button">
+            <span class="fc-icon"><i class="fa-solid fa-video"></i></span>
+            <b>Video</b>
+            <span>MP4 &middot; WEBM &middot; MOV</span>
+            <span class="fc-tag fc-tag--limit">Maks 300MB</span>
+          </button>
+        </div>
+        <button class="filechooser-cancel" id="fileChooserCancel" type="button">Batal</button>
+      </div>
+    </div>
+
+    <div class="dropzone-hint" id="dropHint">Lepaskan foto atau video di sini untuk mengunggah</div>
+
+    <!-- viewport with before/after canvases -->
+    <div id="viewport">
+      <div class="badge-local"><span class="dot"></span> <span id="badgeText">100% Local Processing</span></div>
+      <div class="warn-banner" id="warnBanner">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <span id="warnText">Large image detected. Processing may take longer on this device.</span>
+      </div>
+
+      <div id="canvasHolder">
+        <canvas id="canvasBefore"></canvas>
+        <canvas id="canvasAfter"></canvas>
+        <video id="sourceVideo" playsinline muted style="display:none;"></video>
+        <button id="videoPlayToggle" class="video-play-toggle" type="button" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none"><path id="videoPlayIcon" d="M8 5v14l11-7L8 5Z" fill="currentColor"/></svg>
+        </button>
+        <span class="ba-tag before" id="beforeTag">BEFORE</span>
+        <span class="ba-tag after" id="afterTag">AFTER</span>
+        <div id="compareDivider"></div>
+        <div id="compareHandle">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M8 8 4 12l4 4M16 8l4 4-4 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div id="layerHandles"></div>
+      </div>
+
+      <div id="processingOverlay"><div class="spinner"></div><span>Processing…</span></div>
+
+      <div class="stage-float">
+        <button class="icon-btn" id="btnZoomIn" title="Zoom in"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="icon-btn" id="btnZoomOut" title="Zoom out"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3M8 11h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        <button class="icon-btn" id="btnStayLock" title="Kunci posisi foto (Stay) — foto tidak ikut jari saat digeser">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2.2" stroke="currentColor" stroke-width="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="stage-float right">
+        <button class="icon-btn" id="btnFit" title="Fit to screen"><svg viewBox="0 0 24 24" fill="none"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="icon-btn" id="btn100" title="100% view"><svg viewBox="0 0 24 24" fill="none"><text x="12" y="16" font-size="9" text-anchor="middle" fill="currentColor" font-family="monospace" font-weight="700">1:1</text></svg></button>
+      </div>
+
+      <div class="compare-toolbar" id="compareToolbar">
+        <button class="compare-btn" id="btnBeforeAfter" title="Ganti tampilan Before / After">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 6 4 12l5 6M15 6l5 6-5 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="baToggleLabel">After</span>
+        </button>
+        <span class="compare-toolbar-sep"></span>
+        <button class="compare-btn" id="btnQuickCompare" title="Tampilkan/sembunyikan garis pembanding">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M5 8l-3 4 3 4M19 8l3 4-3 4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Quick Compare</span>
+        </button>
+        <span class="compare-toolbar-sep"></span>
+        <button class="compare-btn" id="btnHoldCompare" title="Tahan untuk melihat foto asli">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>Hold</span>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- info strip: resolution / file size -->
+  <div class="info-strip" id="infoStrip">
+    <span>ORIGINAL <b id="infoOrigRes">–</b></span>
+    <span>OUTPUT <b id="infoOutRes">–</b></span>
+    <span>FILE <b id="infoFileSize">–</b></span>
+    <span>ZOOM <b id="infoZoom">100%</b></span>
+  </div>
+
+  <!-- ================= BOTTOM TAB NAV ================= -->
+  <nav class="bottom-tabs" id="bottomTabs">
+    <button class="tab-btn active" data-tab="auto"><svg viewBox="0 0 24 24" fill="none"><path d="m12 3 1.9 4.5L18 9.3l-4.1 1.8L12 15.5l-1.9-4.4L6 9.3l4.1-1.8L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M19 15l.7 1.6L21.3 17l-1.6.7L19 19.3l-.7-1.6L16.7 17l1.6-.7L19 15Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Auto</button>
+    <button class="tab-btn" data-tab="upscale"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Resolusi</button>
+    <button class="tab-btn" data-tab="detail"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12h4l2-7 4 14 2-7h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Detail</button>
+    <button class="tab-btn" data-tab="color"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="8.5" r="1.6" fill="currentColor"/><circle cx="8.2" cy="13.5" r="1.6" fill="currentColor"/><circle cx="15.8" cy="13.5" r="1.6" fill="currentColor"/></svg>Color</button>
+    <button class="tab-btn" data-tab="filter"><svg viewBox="0 0 24 24" fill="none"><path d="M4 5h16M4 12h16M4 19h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="5" r="2" fill="currentColor"/><circle cx="9" cy="12" r="2" fill="currentColor"/><circle cx="17" cy="19" r="2" fill="currentColor"/></svg>Filter</button>
+    <button class="tab-btn" data-tab="face"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 10.5v.5M15 10.5v.5M9 15c1 1 5 1 6 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Face</button>
+    <button class="tab-btn" data-tab="edit"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6.5h16M4 12h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="14.5" y="14.5" width="6.5" height="6.5" rx="1.2" stroke="currentColor" stroke-width="1.6"/><path d="M15.7 15.7v4.1M18.25 15.7v4.1M20.8 15.7v4.1M14.5 17.9h6.5" stroke="currentColor" stroke-width="1.1"/></svg>Edit</button>
+    <button class="tab-btn" data-tab="export"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Export</button>
+  </nav>
+
+  <input type="file" id="fileInput" accept="image/*,video/*" hidden>
+
+</div><!-- /pageHome -->
+
+<!-- ================= PAGE: PROJECT ================= -->
+<div id="pageProject" class="page">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-text"><b>Project</b><span>Riwayat foto yang sudah kamu proses</span></div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-ghost" id="btnNewProject" style="padding:8px 14px;font-size:12.5px;">+ Project Baru</button>
+      <button class="btn-ghost" id="btnClearProjects" style="padding:8px 14px;font-size:12.5px;">Hapus Semua</button>
+    </div>
+  </header>
+  <div class="page-scroll" id="projectListWrap">
+    <div class="project-empty" id="projectEmpty">
+      <div class="empty-emoji"><i class="fa-regular fa-folder-open"></i></div>
+      <h2>Belum Ada Project</h2>
+      <p>Foto yang kamu enhance dan unduh akan muncul di sini sebagai riwayat.</p>
+      <button class="btn-primary" id="btnNewProjectEmpty">+ Project Baru</button>
+    </div>
+    <div class="project-grid" id="projectGrid"></div>
+  </div>
+</div>
+
+<!-- ================= PAGE: ACCOUNT ================= -->
+<div id="pageAccount" class="page">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-text"><b>Akun</b><span>Profil &amp; credit kamu</span></div>
+    </div>
+  </header>
+  <div class="page-scroll">
+    <div class="user-profile-row">
+      <div class="profile-avatar-wrap" id="profileAvatarWrap">
+        <img id="userProfileAvatarAcc" class="user-profile-avatar" alt="" style="display:none;">
+        <div class="profile-avatar-fallback" id="profileAvatarFallbackAcc">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.4" stroke="currentColor" stroke-width="1.8"/><path d="M4.8 19.5c1.1-3.3 3.9-5 7.2-5s6.1 1.7 7.2 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <button class="avatar-edit-btn" id="btnChangeAvatar" type="button" title="Ganti foto profil" aria-label="Ganti foto profil">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 8.5C4 7.12 5.12 6 6.5 6h1.2c.4 0 .77-.2.99-.53l.7-1.06A1.5 1.5 0 0 1 10.65 3.7h2.7c.5 0 .97.25 1.26.67l.7 1.06c.22.33.6.53.99.53h1.2C18.88 6 20 7.12 20 8.5v8c0 1.38-1.12 2.5-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12.2" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
+        </button>
+        <input type="file" id="profilePhotoInput" accept="image/*" hidden>
+      </div>
+      <div class="user-profile-text">
+        <div class="username-row" id="usernameDisplayRow">
+          <b id="userProfileNameAcc">–</b>
+          <button class="icon-btn-sm" id="btnEditUsername" type="button" title="Ubah username" aria-label="Ubah username">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M13 6.5 17.5 11" stroke="currentColor" stroke-width="1.7"/></svg>
+          </button>
+        </div>
+        <div class="username-edit-row" id="usernameEditRow" style="display:none;">
+          <input type="text" id="usernameInput" class="auth-input" placeholder="Username" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button class="btn-ghost username-edit-action" id="btnSaveUsername" type="button">Simpan</button>
+          <button class="btn-ghost username-edit-action" id="btnCancelUsername" type="button">Batal</button>
+        </div>
+        <span id="userProfileEmailAcc"></span>
+      </div>
+      <button class="btn-ghost user-signout-btn" id="btnSignOutAccount">Keluar</button>
+    </div>
+    <p class="avatar-upload-status" id="avatarUploadStatus" style="display:none;"></p>
+
+    <div class="credit-hero">
+      <span class="credit-hero-label">Your Credits</span>
+      <span class="credit-hero-num" id="creditHeroNumAcc">–</span>
+    </div>
+    <button class="btn-primary" id="btnBuyCreditAccount" style="width:100%;justify-content:center;"><i class="fa-solid fa-bolt"></i>&nbsp;Buy Credit</button>
+
+    <div class="modal-section">
+      <h4>UID Kamu</h4>
+      <p style="font-size:11.5px;color:var(--text-dim);margin:0 0 8px;">Tunjukkan UID ini ke admin kalau butuh top-up credit.</p>
+      <div class="uid-row">
+        <code id="myUidText">–</code>
+        <button class="btn-ghost uid-copy-btn" id="btnCopyUid" type="button">Salin</button>
+      </div>
+    </div>
+
+    <div class="modal-section" style="margin-top:20px;">
+      <h4>Credit Packages</h4>
+      <div class="credit-pkg-row">
+        <button class="credit-pkg" data-pkg="10"><b>10</b><span>Credits</span></button>
+        <button class="credit-pkg" data-pkg="50"><b>50</b><span>Credits</span></button>
+        <button class="credit-pkg" data-pkg="100"><b>100</b><span>Credits</span></button>
+      </div>
+      <p style="font-size:11.5px;color:var(--text-dim);margin:8px 0 0;">Tap paket untuk membuka halaman pembelian.</p>
+    </div>
+
+    <div class="modal-section">
+      <h4>Status</h4>
+      <div class="about-row"><span>PRO (on-device)</span><span>1 credit / photo</span></div>
+      <div class="about-row"><span>Free (on-device)</span><span id="freeUsageTextAcc">–/20 today</span></div>
+    </div>
+
+    <div class="modal-section">
+      <h4>Lainnya</h4>
+      <button class="btn-ghost" style="width:100%;text-align:center;" id="btnOpenSettingsAccount">Settings</button>
+    </div>
+
+    <!-- ================= ADMIN PANEL (only visible for admin email) ================= -->
+    <div class="modal-section admin-section" id="adminSection" style="display:none;">
+      <h4><i class="fa-solid fa-gear"></i> Admin — Tambah Credit</h4>
+      <p style="font-size:11.5px;color:var(--text-dim);margin:0 0 10px;">Masukkan UID user, cari untuk konfirmasi, lalu tambahkan credit-nya.</p>
+
+      <label class="admin-label">UID User</label>
+      <div class="admin-uid-row">
+        <input type="text" id="adminTargetUid" class="auth-input" placeholder="Tempel UID di sini" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="btn-ghost" id="btnAdminFindUser" type="button">Cari</button>
+      </div>
+
+      <div class="admin-user-found" id="adminUserFound" style="display:none;">
+        <div class="about-row"><span>Email</span><span id="adminFoundEmail">–</span></div>
+        <div class="about-row"><span>Credit saat ini</span><span id="adminFoundCredits">–</span></div>
+      </div>
+      <p class="admin-status" id="adminFindStatus"></p>
+
+      <label class="admin-label" style="margin-top:14px;">Jumlah Credit Ditambahkan</label>
+      <input type="number" id="adminCreditAmount" class="auth-input" placeholder="Contoh: 10" min="1" step="1" inputmode="numeric">
+
+      <button class="btn-primary" id="btnAdminAddCredit" style="width:100%;justify-content:center;margin-top:12px;" disabled>Tambah Credit</button>
+      <p class="admin-status" id="adminAddStatus"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PAGE: COMMUNITY (Preset / Overlay / Feed) ================= -->
+<div id="pageCommunity" class="page">
+  <header class="topbar community-topbar">
+    <div class="brand">
+      <div class="brand-text"><b>Community</b><span id="communitySubtitle">Preset, overlay &amp; karya dari creator lain</span></div>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btnCommunityCreate" title="Buat baru" aria-label="Buat baru">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- sub-tabs: Feed / Preset / Overlay -->
+  <div class="community-subnav" id="communitySubnav">
+    <button class="community-subnav-btn active" data-sub="feed">Feed</button>
+    <button class="community-subnav-btn" data-sub="preset">Preset</button>
+    <button class="community-subnav-btn" data-sub="overlay">Overlay</button>
+  </div>
+
+  <div class="community-search-row">
+    <div class="community-search">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input type="text" id="communitySearchInput" placeholder="Cari preset, overlay, atau creator..." autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <button class="icon-btn" id="btnCommunitySort" title="Urutkan" aria-label="Urutkan">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h11M4 12h7M4 17h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17 15l3 3 3-3M20 5v13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+  <div class="community-chip-row" id="communityCategoryRow"><!-- populated by JS per sub-tab --></div>
+  <div class="community-chip-row community-sort-row" id="communitySortRow"><!-- populated by JS per sub-tab --></div>
+
+  <div class="page-scroll community-scroll" id="communityScroll">
+    <div class="community-grid" id="communityGrid"><!-- populated by JS --></div>
+    <div class="community-empty" id="communityEmpty" style="display:none;">
+      <div class="empty-emoji community-empty-emoji"><i class="fa-solid fa-sparkles"></i></div>
+      <h2 id="communityEmptyTitle">Belum Ada Apa-apa</h2>
+      <p id="communityEmptyText">Jadilah yang pertama membagikan karyamu di sini.</p>
+      <button class="btn-primary community-empty-btn" id="btnCommunityEmptyAction" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        Bagikan Karya
+      </button>
+    </div>
+    <div class="community-sentinel" id="communitySentinel"></div>
+  </div>
+</div>
+
+<!-- ================= APP-LEVEL BOTTOM NAV ================= -->
+<nav class="app-nav" id="appNav">
+  <button class="app-nav-btn active" data-page="home">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M4 11.5 12 4l8 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10v8.5A1.5 1.5 0 0 0 7.5 20h9a1.5 1.5 0 0 0 1.5-1.5V10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Home
+  </button>
+  <button class="app-nav-btn" data-page="community">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M8 12.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 11.5a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2Z" stroke="currentColor" stroke-width="1.7"/><path d="M2.8 19c.7-2.8 2.9-4.3 5.2-4.3s4.5 1.5 5.2 4.3M13.5 15.3c1.9.2 3.6 1.5 4.2 3.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    Community
+  </button>
+  <button class="app-nav-btn" data-page="project">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M3 8.5c0-1 .8-1.8 1.8-1.8h4l1.6 2h8.8c1 0 1.8.8 1.8 1.8v7.7c0 1-.8 1.8-1.8 1.8H4.8c-1 0-1.8-.8-1.8-1.8v-9.7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    Project
+  </button>
+  <button class="app-nav-btn" data-page="account">
+    <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.4" stroke="currentColor" stroke-width="1.8"/><path d="M4.8 19.5c1.1-3.3 3.9-5 7.2-5s6.1 1.7 7.2 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    Akun
+  </button>
+</nav>
+
+</div><!-- /app -->
+
+<!-- ================= BOTTOM SHEET (tool panels) ================= -->
+<div id="sheetBackdrop"></div>
+<div id="toolSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-live-preview-wrap" id="sheetLivePreviewWrap"><canvas id="sheetLivePreview"></canvas></div>
+  <div class="sheet-head"><h3 id="sheetTitle">Auto Enhance</h3><button class="icon-btn" id="btnCloseSheet"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+  <div class="sheet-body" id="sheetBody"><!-- populated by JS per tab --></div>
+</div>
+
+<!-- ================= MODERN EXPORT PROGRESS OVERLAY (sama seperti loading screen awal) ================= -->
+<div id="exportOverlay">
+  <div class="export-progress-circle">
+    <div class="loader-ring">
+      <div class="loader-ring-inner"></div>
+      <svg viewBox="0 0 100 100" width="100" height="100">
+        <circle class="bg" cx="50" cy="50" r="42"/>
+        <circle class="fg" id="progressCircle" cx="50" cy="50" r="42" stroke-dasharray="263.89" stroke-dashoffset="263.89"/>
+      </svg>
+      <div class="center-text" id="progressPercent">0%</div>
+    </div>
+    <div class="loader-glow" id="exportGlow"></div>
+  </div>
+  <div class="export-status-text" id="exportStatusText">Mempersiapkan gambar...</div>
+  <div class="export-progress-bar"><div class="fill" id="progressFill"></div></div>
+  <button class="export-cancel-btn" id="exportCancelBtn">Batalkan</button>
+</div>
+
+<!-- ================= SETTINGS MODAL ================= -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal-card">
+    <div class="modal-head"><h3>Settings</h3><button class="icon-btn" id="btnCloseSettings"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+
+    <div class="modal-section">
+      <h4>Processing</h4>
+      <div class="toggle-row"><div><b>Preview Quality</b><span>Kualitas render saat menggeser slider</span></div>
+        <select class="select-field" id="setPreviewQuality" style="width:110px;"><option value="fast">Fast</option><option value="balanced" selected>Balanced</option><option value="high">High</option></select>
+      </div>
+      <div class="toggle-row"><div><b>Auto Enhance</b><span>Terapkan otomatis saat foto dibuka</span></div><div class="switch" id="setAutoOnLoad" data-key="autoOnLoad"></div></div>
+      <div class="toggle-row"><div><b>Hardware Acceleration</b><span>Gunakan Web Worker untuk proses berat</span></div><div class="switch on" id="setHwAccel" data-key="hwAccel"></div></div>
+      <div class="toggle-row"><div><b>WebGL/WebGPU bila tersedia</b><span>Percepat render bila didukung perangkat</span></div><div class="switch on" id="setUseGpu" data-key="useGpu"></div></div>
+    </div>
+
+    <div class="modal-section">
+      <h4>Export</h4>
+      <div class="toggle-row"><div><b>Default Format</b></div>
+        <select class="select-field" id="setDefaultFormat" style="width:110px;"><option value="jpeg">JPG</option><option value="png">PNG</option><option value="webp">WEBP</option></select>
+      </div>
+      <div class="toggle-row"><div><b>Default Quality</b></div>
+        <select class="select-field" id="setDefaultQuality" style="width:130px;"><option value="standard">Standard</option><option value="high" selected>High Quality</option><option value="max">Maximum</option></select>
+      </div>
+      <div class="toggle-row"><div><b>Default Resolusi</b></div>
+        <select class="select-field" id="setDefaultUpscale" style="width:90px;"><option value="hd">HD</option><option value="2k" selected>2K</option><option value="4k">4K</option><option value="8k">8K</option></select>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h4>Interface</h4>
+      <div class="toggle-row"><div><b>Dark Mode</b><span>Ganti ke tampilan terang</span></div><div class="switch on" id="setDarkMode" data-key="darkMode"></div></div>
+      <div class="toggle-row"><div><b>Haptic Feedback</b><span>Getaran ringan saat interaksi</span></div><div class="switch" id="setHaptic" data-key="haptic"></div></div>
+    </div>
+
+    <div class="modal-section">
+      <h4>About</h4>
+      <div class="about-row"><span>Application</span><span>PhotoLab</span></div>
+      <div class="about-row"><span>Version</span><span>2.1.0</span></div>
+      <div class="about-row"><span>Free</span><span>100% On-device</span></div>
+      <div class="about-row"><span>PRO</span><span>100% On-device</span></div>
+      <div class="about-row"><span>Network access</span><span>Only required for login &amp; credit sync</span></div>
+    </div>
+    <button class="btn-ghost" style="width:100%;text-align:center;" id="btnCloseSettings2">Close</button>
+  </div>
+</div>
+
+<!-- ================= CREDIT CENTER MODAL ================= -->
+<div class="modal-backdrop" id="creditCenterModal">
+  <div class="modal-card">
+    <div class="modal-head"><h3>Credit Center</h3><button class="icon-btn" id="btnCloseCreditCenter"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+
+    <div class="user-profile-row">
+      <img id="userProfileAvatar" class="user-profile-avatar" alt="" style="display:none;">
+      <div class="user-profile-text">
+        <b id="userProfileName">–</b>
+        <span id="userProfileEmail"></span>
+      </div>
+      <button class="btn-ghost user-signout-btn" id="btnSignOut">Keluar</button>
+    </div>
+
+    <div class="credit-hero">
+      <span class="credit-hero-label">Your Credits</span>
+      <span class="credit-hero-num" id="creditHeroNum">–</span>
+    </div>
+    <button class="btn-primary" id="btnBuyCredit" style="width:100%;justify-content:center;"><i class="fa-solid fa-bolt"></i>&nbsp;Buy Credit</button>
+
+    <div class="modal-section" style="margin-top:20px;">
+      <h4>Credit Packages</h4>
+      <div class="credit-pkg-row">
+        <button class="credit-pkg" data-pkg="10"><b>10</b><span>Credits</span></button>
+        <button class="credit-pkg" data-pkg="50"><b>50</b><span>Credits</span></button>
+        <button class="credit-pkg" data-pkg="100"><b>100</b><span>Credits</span></button>
+      </div>
+      <p style="font-size:11.5px;color:var(--text-dim);margin:8px 0 0;">Tap paket untuk membuka halaman pembelian.</p>
+    </div>
+
+    <div class="modal-section">
+      <h4>Status</h4>
+      <div class="about-row"><span>PRO (on-device)</span><span id="creditStatusText">1 credit / photo</span></div>
+      <div class="about-row"><span>Free (on-device)</span><span id="freeUsageText">–/20 today</span></div>
+    </div>
+    <button class="btn-ghost" style="width:100%;text-align:center;" id="btnCloseCreditCenter2">Close</button>
+  </div>
+</div>
+
+<!-- ================= OUT OF CREDIT MODAL ================= -->
+<div class="modal-backdrop" id="outOfCreditModal">
+  <div class="modal-card" style="text-align:center;">
+    <div class="modal-head" style="justify-content:center;"><h3>Credit kamu habis</h3></div>
+    <p style="font-size:13.5px;color:var(--text-dim);margin:0 0 18px;line-height:1.5;">Beli credit untuk melanjutkan menggunakan fitur PRO.</p>
+    <button class="btn-primary" id="btnBuyCreditFromModal" style="width:100%;justify-content:center;margin-top:0;">BUY CREDIT</button>
+    <button class="btn-ghost" style="width:100%;text-align:center;margin-top:10px;" id="btnCloseOutOfCredit">Close</button>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+  
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
+<script src="photolab-script.js"></script>
+<script src="community.js"></script>
+<script src="community-creator.js"></script>
+<script src="community-watermark.js"></script>
+<script src="community-social.js"></script>
+</body>
+</html>

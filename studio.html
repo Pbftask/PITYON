@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0A0C10">
+<title>Jedag Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="studio-style.css">
+</head>
+<body>
+
+<!-- ============ HOME PAGE ============ -->
+<div id="page-home" class="page active">
+  <header class="app-topbar">
+    <button class="icon-btn" id="btnMenu" aria-label="Menu">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <div class="brand">
+      <span class="brand-jedag">Pity</span><span class="brand-studio">STUDIO</span>
+    </div>
+    <button class="icon-btn avatar-btn" id="btnAvatar" aria-label="Akun">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+    </button>
+  </header>
+
+  <main class="home-scroll">
+    <div class="section-row">
+      <h2>Latest Projects</h2>
+      <button class="link-btn" id="btnViewAll">Lihat semua</button>
+    </div>
+
+    <button class="create-project-card" id="btnCreateProject">
+      <span class="plus-circle-sm"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+      <span>Buat Project Baru</span>
+    </button>
+
+    <div id="projectList" class="project-list"></div>
+    <div id="emptyProjects" class="empty-state hidden">
+      <p>Belum ada project.</p>
+      <p class="muted">Ketuk "Buat Project Baru" untuk mulai edit jedag-jedug pertamamu.</p>
+    </div>
+  </main>
+</div>
+
+<!-- ============ PROJECTS PAGE ============ -->
+<div id="page-projects" class="page">
+  <header class="app-topbar">
+    <span class="page-title">Projects</span>
+  </header>
+  <main class="home-scroll">
+    <div id="projectListFull" class="project-list"></div>
+  </main>
+</div>
+
+<!-- ============ TEMPLATES PAGE ============ -->
+<div id="page-templates" class="page">
+  <header class="app-topbar">
+    <span class="page-title">Templates</span>
+    <button class="icon-btn" id="btnImportXmlHome" aria-label="Import Template">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+    </button>
+  </header>
+  <main class="home-scroll">
+    <div class="template-hint">Import file <b>.jedag.xml</b> untuk memakai template, atau simpan project sebagai template baru.</div>
+    <div id="templateList" class="template-grid"></div>
+  </main>
+</div>
+
+<!-- ============ TUTORIALS PAGE ============ -->
+<div id="page-tutorials" class="page">
+  <header class="app-topbar">
+    <span class="page-title">Tutorials</span>
+  </header>
+  <main class="home-scroll">
+    <div class="tutorial-card"><h3>1. Mulai Project</h3><p class="muted">Ketuk "Buat Project Baru", pilih rasio canvas, lalu tambahkan media lewat tombol + di kanan bawah editor.</p></div>
+    <div class="tutorial-card"><h3>2. Sinkron Beat</h3><p class="muted">Import audio lalu ketuk "Auto Beat" untuk mendeteksi ketukan otomatis. Marker beat akan muncul di timeline audio.</p></div>
+    <div class="tutorial-card"><h3>3. Efek Jedag-Jedug</h3><p class="muted">Pilih clip di timeline, buka tab Effect, lalu pilih preset seperti Beat Zoom atau Beat Shake. Aktifkan "Snap to Beat" agar efek otomatis jatuh di ketukan.</p></div>
+    <div class="tutorial-card"><h3>4. Simpan sebagai Template</h3><p class="muted">Gunakan Export Template untuk membuat file .jedag.xml yang bisa dibagikan dan dipakai ulang tanpa menyertakan media asli.</p></div>
+  </main>
+</div>
+
+<!-- ============ EDITOR PAGE ============ -->
+<div id="page-editor" class="page">
+  <header class="editor-topbar">
+    <button class="icon-btn" id="btnEditorBack" aria-label="Kembali"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <input id="projectNameInput" class="project-name-input" value="New Project" maxlength="40">
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btnUndo" aria-label="Undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 016 6v1"/></svg></button>
+      <button class="icon-btn" id="btnRedo" aria-label="Redo" disabled><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 00-6 6v1"/></svg></button>
+      <button class="icon-btn" id="btnEditorSettings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.16.31.4.55.7.7.3.15.63.23.97.23H21a2 2 0 010 4h-.09c-.34 0-.67.08-.97.23-.3.15-.54.39-.7.7z"/></svg></button>
+      <button class="pill-btn accent" id="btnExport">Export</button>
+    </div>
+  </header>
+
+  <div class="preview-wrap" id="previewWrap">
+    <div class="preview-frame" id="previewFrame">
+      <canvas id="previewCanvas"></canvas>
+      <div id="textOverlayLayer" class="text-overlay-layer"></div>
+    </div>
+    <button class="icon-btn preview-fullscreen-btn" id="btnFullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg></button>
+    <div class="ratio-chip" id="ratioChip">9:16</div>
+  </div>
+
+  <div class="transport-row">
+    <button class="icon-btn" id="btnPlayPause" aria-label="Play"><svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+    <span class="timecode" id="timecode">00:00:00 / 00:00:00</span>
+    <div class="transport-spacer"></div>
+    <button class="icon-btn sm" id="btnZoomOut" aria-label="Zoom out">-</button>
+    <button class="icon-btn sm" id="btnZoomIn" aria-label="Zoom in">+</button>
+    <button class="icon-btn sm" id="btnSplit" aria-label="Split clip"><svg viewBox="0 0 24 24"><path d="M6 3v18M18 3v18M9 12h6"/></svg></button>
+  </div>
+
+  <div class="timeline-wrap" id="timelineWrap">
+    <div class="timeline-ruler" id="timelineRuler"></div>
+    <div class="timeline-scroll" id="timelineScroll">
+      <div class="timeline-tracks" id="timelineTracks"></div>
+      <div class="playhead" id="playhead"></div>
+    </div>
+    <div class="timeline-empty-hint" id="timelineEmptyHint">Ketuk + untuk menambahkan media pertamamu</div>
+  </div>
+
+  <!-- clip context tabs (shows when a clip is selected) -->
+  <div class="clip-tabs-bar hidden" id="clipTabsBar">
+    <div class="clip-tabs-scroll">
+      <button class="clip-tab active" data-tab="basic">Basic</button>
+      <button class="clip-tab" data-tab="animation">Animation</button>
+      <button class="clip-tab" data-tab="effect">Effect</button>
+      <button class="clip-tab" data-tab="adjust">Adjust</button>
+      <button class="clip-tab" data-tab="speed">Speed</button>
+      <button class="clip-tab" data-tab="mask">Mask</button>
+      <button class="clip-tab" data-tab="transition">Transition</button>
+      <button class="clip-tab" data-tab="blend">Blend</button>
+      <button class="clip-tab" data-tab="layer">Layer</button>
+    </div>
+    <button class="icon-btn sm" id="btnCloseClipTabs">✕</button>
+  </div>
+
+  <!-- Floating add button -->
+  <button class="fab" id="fabAdd" aria-label="Tambah">
+    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<!-- ============ BOTTOM NAV (shown on non-editor pages) ============ -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="nav-item active" data-page="home">
+    <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span>Home</span>
+  </button>
+  <button class="nav-item" data-page="tutorials">
+    <svg viewBox="0 0 24 24"><path d="M22 10L12 5 2 10l10 5 10-5zM6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg><span>Tutorials</span>
+  </button>
+  <button class="nav-item nav-item-fab" id="navCreate">
+    <span class="nav-fab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+  </button>
+  <button class="nav-item" data-page="projects">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7"/><rect x="14" y="4" width="7" height="7"/><rect x="3" y="14" width="18" height="6"/></svg><span>Projects</span>
+  </button>
+  <button class="nav-item" data-page="templates">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="18"/><rect x="13" y="3" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg><span>Templates <span class="new-badge">NEW</span></span>
+  </button>
+</nav>
+
+<!-- ============ BOTTOM SHEET: Add menu ============ -->
+<div class="sheet-backdrop" id="sheetBackdropAdd"></div>
+<div class="bottom-sheet" id="sheetAdd">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Tambah</div>
+  <div class="add-grid">
+    <button class="add-item" data-add="media"><span class="add-icon">🖼️</span>Media</button>
+    <button class="add-item" data-add="video"><span class="add-icon">🎬</span>Video</button>
+    <button class="add-item" data-add="photo"><span class="add-icon">📷</span>Foto</button>
+    <button class="add-item" data-add="audio"><span class="add-icon">🎵</span>Audio</button>
+    <button class="add-item" data-add="text"><span class="add-icon">🅣</span>Text</button>
+    <button class="add-item" data-add="shape"><span class="add-icon">◆</span>Shape</button>
+    <button class="add-item" data-add="sticker"><span class="add-icon">✨</span>Sticker</button>
+    <button class="add-item" data-add="effect"><span class="add-icon">⚡</span>Effect</button>
+    <button class="add-item" data-add="transition"><span class="add-icon">⇄</span>Transition</button>
+    <button class="add-item" data-add="overlay"><span class="add-icon">▦</span>Overlay</button>
+    <button class="add-item" data-add="beat"><span class="add-icon">🥁</span>Beat</button>
+    <button class="add-item" data-add="adjustment"><span class="add-icon">🎚️</span>Adjustment</button>
+    <button class="add-item" data-add="subtitle"><span class="add-icon">💬</span>Subtitle</button>
+  </div>
+</div>
+
+<!-- ============ BOTTOM SHEET: generic panel (effects/adjust/animation/etc) ============ -->
+<div class="sheet-backdrop" id="sheetBackdropPanel"></div>
+<div class="bottom-sheet tall" id="sheetPanel">
+  <div class="sheet-handle" id="panelDragHandle"></div>
+  <div class="sheet-title" id="panelTitle">Panel</div>
+  <div class="sheet-body" id="panelBody"></div>
+</div>
+
+<!-- ============ MODAL: New project ============ -->
+<div class="modal-backdrop" id="modalNewProject">
+  <div class="modal-card">
+    <h3>Project Baru</h3>
+    <p class="muted">Pilih rasio canvas</p>
+    <div class="ratio-grid">
+      <button class="ratio-opt active" data-ratio="9:16">9:16<span>Reels/TikTok</span></button>
+      <button class="ratio-opt" data-ratio="16:9">16:9<span>YouTube</span></button>
+      <button class="ratio-opt" data-ratio="1:1">1:1<span>Feed</span></button>
+      <button class="ratio-opt" data-ratio="4:5">4:5<span>Portrait</span></button>
+    </div>
+    <div class="modal-actions">
+      <button class="pill-btn ghost" id="btnCancelNewProject">Batal</button>
+      <button class="pill-btn accent" id="btnConfirmNewProject">Buat</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: Export ============ -->
+<div class="modal-backdrop" id="modalExport">
+  <div class="modal-card">
+    <h3>Export Video</h3>
+    <div class="option-row">
+      <span>Resolusi</span>
+      <div class="seg" id="segRes">
+        <button class="seg-opt active" data-res="720">720p</button>
+        <button class="seg-opt" data-res="1080">1080p</button>
+      </div>
+    </div>
+    <div class="option-row">
+      <span>Frame rate</span>
+      <div class="seg" id="segFps">
+        <button class="seg-opt active" data-fps="30">30 FPS</button>
+        <button class="seg-opt" data-fps="60">60 FPS</button>
+      </div>
+    </div>
+    <p class="muted small" id="exportFormatNote">Format output: WebM (MP4 tidak didukung browser ini)</p>
+    <div class="export-progress hidden" id="exportProgress">
+      <div class="export-progress-bar"><div id="exportProgressFill"></div></div>
+      <span id="exportProgressLabel">Merender... 0%</span>
+    </div>
+    <div class="modal-actions">
+      <button class="pill-btn ghost" id="btnCancelExport">Batal</button>
+      <button class="pill-btn accent" id="btnStartExport">Mulai Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: XML Import media mapping ============ -->
+<div class="modal-backdrop" id="modalImportMap">
+  <div class="modal-card">
+    <h3>Lengkapi Media</h3>
+    <p class="muted small">Template ini butuh media berikut. Pilih file untuk tiap placeholder.</p>
+    <div id="mediaMapList" class="media-map-list"></div>
+    <div class="modal-actions">
+      <button class="pill-btn ghost" id="btnCancelImportMap">Batal</button>
+      <button class="pill-btn ghost" id="btnAutoFillMedia">Auto Fill</button>
+      <button class="pill-btn accent" id="btnConfirmImportMap">Buat Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- hidden file inputs -->
+<input type="file" id="fileInputVideo" accept="video/*" multiple hidden>
+<input type="file" id="fileInputPhoto" accept="image/*" multiple hidden>
+<input type="file" id="fileInputAudio" accept="audio/*" hidden>
+<input type="file" id="fileInputXml" accept=".xml,.jedag.xml,text/xml" hidden>
+<input type="file" id="fileInputMap" accept="video/*,image/*" hidden>
+
+<div class="toast" id="toast"></div>
+
+<script src="studio-script.js"></script>
+<script src="effect.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>
