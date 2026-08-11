@@ -40,13 +40,10 @@
     display:flex; flex-direction:column;
     position:relative;
   }
-  /* On wide screens, keep the chat column at a comfortable reading width
-     while the app still fills the full viewport instead of floating as a card. */
   @media (min-width: 720px){
     #view-contacts, #view-chat, #view-auth{ align-self:center; width:min(560px, 100%); }
     .phone{ align-items:stretch; }
     .brand{ max-width:560px; margin:0 auto; width:100%; }
-  }
   }
   .brand{
     display:flex; align-items:center; gap:.5rem;
@@ -61,7 +58,6 @@
   .brand b{font-size:1rem;letter-spacing:.2px}
   .brand .tag{position:absolute;font-size:0rem;color:var(--muted); margin-left:200px;margin-top:10px}
 
-  /* ---------- VIEW STACK ---------- */
   .view{ display:none; flex-direction:column; min-height:0; flex:1; }
   .view.active{ display:flex; }
 
@@ -90,6 +86,28 @@
   .switch-line{font-size:.8rem;color:var(--muted);margin-top:.9rem}
   .switch-line button{background:none;border:0;color:var(--accent);font-weight:700;cursor:pointer;padding:0;font-size:.8rem}
   .auth-error{color:var(--danger);font-size:.78rem;min-height:1.1em;margin-top:.3rem}
+
+  .guest-badge{
+    display:inline-block;
+    background:var(--card-2);
+    color:var(--muted);
+    font-size:.6rem;
+    padding:.15rem .5rem;
+    border-radius:6px;
+    margin-left:.4rem;
+    vertical-align:middle;
+    border:1px solid var(--ring);
+  }
+  .banned-badge{
+    display:inline-block;
+    background:var(--danger);
+    color:#fff;
+    font-size:.6rem;
+    padding:.15rem .5rem;
+    border-radius:6px;
+    margin-left:.4rem;
+    vertical-align:middle;
+  }
 
   /* ---------- CONTACTS VIEW ---------- */
   #view-contacts{ min-height:0; }
@@ -121,6 +139,7 @@
   }
   .contact:active{background:var(--card-2)}
   .contact:hover{background:var(--card)}
+  .contact.banned{ opacity:0.4; filter:grayscale(1); pointer-events:none; }
   .avatar{
     width:40px;height:40px;border-radius:50%;flex-shrink:0;
     background:linear-gradient(150deg,#3a4360,#232a38);
@@ -201,7 +220,7 @@
     padding:1.6rem 1rem 1.2rem; border-bottom:1px solid var(--ring);
   }
   .profile-hero .avatar{ width:64px; height:64px; font-size:1.4rem; }
-  .profile-hero .pname{ font-weight:700; font-size:1.02rem; display:flex; align-items:center; }
+  .profile-hero .pname{ font-weight:700; font-size:1.02rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; justify-content:center; }
   .profile-body{ padding:1rem; display:flex; flex-direction:column; gap:.8rem; }
   .profile-field{
     background:var(--card); border:1px solid var(--ring); border-radius:12px;
@@ -222,7 +241,6 @@
     border-radius:10px; padding:.55rem .7rem; font-size:.83rem; cursor:pointer;
   }
 
-  /* delete-own-message button */
   .b{ position:relative; }
   .b.me{ padding-right:1.9rem; }
   .msg-del{
@@ -232,6 +250,64 @@
   }
   .b.me:hover .msg-del, .b.me.show-del .msg-del{ display:flex; }
   .msg-del:active{ opacity:1; }
+
+  .auth-tabs{
+    display:flex;
+    gap:.5rem;
+    background:var(--card);
+    border-radius:13px;
+    padding:.3rem;
+    margin-bottom:.5rem;
+    border:1px solid var(--ring);
+  }
+  .auth-tab{
+    flex:1;
+    padding:.5rem;
+    border-radius:10px;
+    border:0;
+    background:transparent;
+    color:var(--muted);
+    font-weight:600;
+    font-size:.82rem;
+    cursor:pointer;
+    transition:all .2s;
+  }
+  .auth-tab.active{
+    background:var(--accent);
+    color:var(--accent-ink);
+  }
+  .auth-tab:active{transform:scale(.97)}
+
+  .banned-overlay{
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.85);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    z-index:999;
+    padding:2rem;
+    text-align:center;
+  }
+  .banned-overlay .icon{
+    font-size:4rem;
+    margin-bottom:1rem;
+  }
+  .banned-overlay h2{ color:var(--danger); margin:0 0 .5rem; }
+  .banned-overlay p{ color:var(--muted); max-width:400px; line-height:1.6; }
+  .banned-overlay button{
+    margin-top:1.5rem;
+    padding:.75rem 2rem;
+    border:0;
+    border-radius:12px;
+    background:var(--danger);
+    color:#fff;
+    font-weight:700;
+    cursor:pointer;
+    font-size:.9rem;
+  }
+  .banned-overlay button:active{transform:scale(.97)}
 </style>
 </head>
 <body>
@@ -245,19 +321,45 @@
     <div class="hero-mark">💬</div>
     <h1 id="authTitle">Masuk ke akun kamu</h1>
     <p class="sub" id="authSub">Chat langsung, cari kontak, mulai ngobrol.</p>
+    
+    <div class="auth-tabs" style="width:100%">
+      <button class="auth-tab active" data-tab="email">Email</button>
+      <button class="auth-tab" data-tab="guest">Guest</button>
+    </div>
+
     <div class="form">
-      <div class="field" id="usernameField" style="display:none">
-        <label>Username</label>
-        <input id="regUsername" placeholder="mis. budi_santoso" autocomplete="username"/>
+      <div id="emailFields">
+        <div class="field" id="usernameField" style="display:none">
+          <label>Username</label>
+          <input id="regUsername" placeholder="mis. budi_santoso" autocomplete="username"/>
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input id="authEmail" type="email" placeholder="kamu@email.com" autocomplete="email"/>
+        </div>
+        <div class="field">
+          <label>Kata sandi</label>
+          <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password"/>
+        </div>
       </div>
-      <div class="field">
-        <label>Email</label>
-        <input id="authEmail" type="email" placeholder="kamu@email.com" autocomplete="email"/>
+
+      <div id="guestFields" style="display:none">
+        <div class="field">
+          <label>Username</label>
+          <input id="guestUsername" placeholder="Pilih username unik" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label>Kata sandi</label>
+          <input id="guestPassword" type="password" placeholder="Buat kata sandi" autocomplete="off"/>
+        </div>
+        <div class="field" style="border-color:var(--accent);background:rgba(224,167,64,0.05)">
+          <label style="color:var(--accent)">ℹ️ Mode Guest</label>
+          <div style="font-size:.75rem;color:var(--muted);padding:.2rem 0">
+            Pesan disimpan di cloud. Akun otomatis di-ban setelah 1 bulan.
+          </div>
+        </div>
       </div>
-      <div class="field">
-        <label>Kata sandi</label>
-        <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password"/>
-      </div>
+
       <div class="auth-error" id="authError"></div>
       <button class="primary-btn" id="authSubmit">Masuk</button>
     </div>
@@ -320,6 +422,10 @@
         <label>Bergabung sejak</label>
         <div class="val" id="profileJoined">—</div>
       </div>
+      <div class="profile-field" id="guestExpiryField" style="display:none">
+        <label>Akun kedaluwarsa</label>
+        <div class="val" id="guestExpiry" style="color:var(--danger)">—</div>
+      </div>
 
       <button class="secondary-btn" id="copyProfileLinkBtn">Salin Link Profil</button>
       <button class="secondary-btn" id="showPwFormBtn">Ganti kata sandi</button>
@@ -356,6 +462,15 @@
     </div>
   </section>
 
+  <!-- BANNED OVERLAY -->
+  <div class="banned-overlay" id="bannedOverlay" style="display:none">
+    <div class="icon">🚫</div>
+    <h2>Akun Guest Telah Diblokir</h2>
+    <p>Akun guest hanya berlaku selama <strong>1 bulan</strong> sejak pendaftaran. Saat ini akun Anda sudah melewati batas waktu dan otomatis dihapus dari sistem.</p>
+    <p style="font-size:.8rem;color:var(--muted)">Silakan daftar dengan email atau buat akun guest baru.</p>
+    <button onclick="logoutAndClearBanned()">Keluar & Buat Akun Baru</button>
+  </div>
+
   <div class="toast" id="toast"></div>
 </div>
 
@@ -368,8 +483,8 @@ import {
   EmailAuthProvider, reauthenticateWithCredential, updatePassword
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
-  getDatabase, ref, set, update, remove, onValue, push, query, get,
-  orderByChild, startAt, endAt, limitToFirst, serverTimestamp, increment
+  getDatabase, ref, set, update, remove, onValue, push,
+  get, increment, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
 const firebaseConfig = {
@@ -389,10 +504,135 @@ const db = getDatabase(app);
 const $ = s => document.querySelector(s);
 
 /* =========================================================
-   PROFILE LINK  (https://domain.com/chat.html?uid=USER_UID)
-   - pendingProfileUid is read once from the URL on page load.
-   - It's only acted on after a successful login (see
-     onAuthStateChanged -> openPendingProfileLink()).
+   GUEST AUTH SYSTEM (localStorage)
+   ========================================================= */
+const GUEST_USERS_KEY = 'obrolin_guest_users';
+const GUEST_SESSION_KEY = 'obrolin_guest_session';
+const GUEST_BANNED_KEY = 'obrolin_guest_banned';
+const GUEST_EXPIRY_DAYS = 30; // 1 month
+
+function getGuestUsers(){
+  try{
+    return JSON.parse(localStorage.getItem(GUEST_USERS_KEY)) || {};
+  }catch{ return {}; }
+}
+
+function saveGuestUsers(users){
+  localStorage.setItem(GUEST_USERS_KEY, JSON.stringify(users));
+}
+
+function getGuestSession(){
+  try{
+    return JSON.parse(localStorage.getItem(GUEST_SESSION_KEY));
+  }catch{ return null; }
+}
+
+function saveGuestSession(username){
+  localStorage.setItem(GUEST_SESSION_KEY, JSON.stringify({ username, loggedIn: true, timestamp: Date.now() }));
+}
+
+function clearGuestSession(){
+  localStorage.removeItem(GUEST_SESSION_KEY);
+}
+
+function isGuestBanned(username){
+  const banned = getGuestBanned();
+  return banned.includes(username);
+}
+
+function getGuestBanned(){
+  try{
+    return JSON.parse(localStorage.getItem(GUEST_BANNED_KEY)) || [];
+  }catch{ return []; }
+}
+
+function addGuestBanned(username){
+  const banned = getGuestBanned();
+  if(!banned.includes(username)){
+    banned.push(username);
+    localStorage.setItem(GUEST_BANNED_KEY, JSON.stringify(banned));
+  }
+}
+
+function guestLogin(username, password){
+  const users = getGuestUsers();
+  if(!users[username]){
+    return { success: false, error: 'Username tidak ditemukan' };
+  }
+  if(isGuestBanned(username)){
+    return { success: false, error: 'Akun ini telah diblokir karena sudah lebih dari 1 bulan' };
+  }
+  if(users[username].password !== password){
+    return { success: false, error: 'Kata sandi salah' };
+  }
+  // Check expiry
+  const createdAt = users[username].createdAt || Date.now();
+  const expiryMs = GUEST_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  if(Date.now() - createdAt > expiryMs){
+    // Ban this guest
+    addGuestBanned(username);
+    // Remove from Firebase
+    remove(ref(db, `users/guest_${username}`)).catch(()=>{});
+    // Remove from local users
+    delete users[username];
+    saveGuestUsers(users);
+    return { success: false, error: 'Akun sudah lebih dari 1 bulan dan telah diblokir' };
+  }
+  saveGuestSession(username);
+  return { success: true, user: { username, ...users[username] } };
+}
+
+function guestRegister(username, password){
+  const users = getGuestUsers();
+  if(users[username]){
+    return { success: false, error: 'Username sudah digunakan' };
+  }
+  if(username.length < 3){
+    return { success: false, error: 'Username minimal 3 karakter' };
+  }
+  if(password.length < 3){
+    return { success: false, error: 'Kata sandi minimal 3 karakter' };
+  }
+  users[username] = {
+    password,
+    createdAt: Date.now(),
+    lastSeen: Date.now()
+  };
+  saveGuestUsers(users);
+  saveGuestSession(username);
+  return { success: true, user: { username, ...users[username] } };
+}
+
+function isGuestSessionValid(){
+  const session = getGuestSession();
+  if(!session) return false;
+  if(isGuestBanned(session.username)) {
+    clearGuestSession();
+    return false;
+  }
+  const users = getGuestUsers();
+  if(!users[session.username]) return false;
+  // Check expiry
+  const createdAt = users[session.username].createdAt || Date.now();
+  const expiryMs = GUEST_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  if(Date.now() - createdAt > expiryMs){
+    addGuestBanned(session.username);
+    delete users[session.username];
+    saveGuestUsers(users);
+    remove(ref(db, `users/guest_${session.username}`)).catch(()=>{});
+    clearGuestSession();
+    return false;
+  }
+  return true;
+}
+
+function getGuestUserData(username){
+  const users = getGuestUsers();
+  return users[username] || null;
+}
+
+/* =========================================================
+   PROFILE LINK
    ========================================================= */
 const urlParams = new URLSearchParams(location.search);
 let pendingProfileUid = urlParams.get('uid') || null;
@@ -404,9 +644,8 @@ function buildProfileLink(uid){
 async function openPendingProfileLink(){
   if(!pendingProfileUid || !ME) return;
   const targetUid = pendingProfileUid;
-  pendingProfileUid = null; // consume so it only ever runs once per page load
+  pendingProfileUid = null;
 
-  // Opening your own profile link has nothing to jump into — just clean the URL.
   if(targetUid === ME.uid){
     history.replaceState(null, '', location.pathname);
     return;
@@ -415,10 +654,10 @@ async function openPendingProfileLink(){
   try{
     const snap = await get(ref(db, `users/${targetUid}`));
     const u = snap.val();
-    if(u && u.uid){
+    if(u && u.uid && !u.banned){
       openChatWith(u.uid, u.username || 'Pengguna', !!u.verified);
     } else {
-      toast('Pengguna tidak ditemukan');
+      toast('Pengguna tidak ditemukan atau telah diblokir');
     }
   }catch(e){
     console.error('Gagal membuka link profil:', e);
@@ -476,55 +715,147 @@ function readTicks(read){
 }
 
 /* =========================================================
-   AUTH VIEW LOGIC (login / register with username)
+   AUTH VIEW LOGIC
    ========================================================= */
-let mode = 'login'; // or 'register'
+let mode = 'login';
+let authTab = 'email';
+
+function setAuthTab(tab){
+  authTab = tab;
+  document.querySelectorAll('.auth-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab === tab));
+  $('#emailFields').style.display = tab === 'email' ? 'block' : 'none';
+  $('#guestFields').style.display = tab === 'guest' ? 'block' : 'none';
+  $('#authError').textContent = '';
+  updateAuthUI();
+}
 
 function setMode(next){
   mode = next;
+  updateAuthUI();
+}
+
+function updateAuthUI(){
+  const isEmail = authTab === 'email';
   const isReg = mode === 'register';
-  $('#usernameField').style.display = isReg ? 'block' : 'none';
-  $('#authTitle').textContent = isReg ? 'Buat akun baru' : 'Masuk ke akun kamu';
-  $('#authSub').textContent = isReg ? 'Isi username, email, dan kata sandi.' : 'Chat langsung, cari kontak, mulai ngobrol.';
-  $('#authSubmit').textContent = isReg ? 'Daftar' : 'Masuk';
-  $('#switchText').textContent = isReg ? 'Sudah punya akun?' : 'Belum punya akun?';
-  $('#switchBtn').textContent = isReg ? 'Masuk' : 'Daftar';
+  
+  if(isEmail){
+    $('#usernameField').style.display = isReg ? 'block' : 'none';
+    $('#authTitle').textContent = isReg ? 'Buat akun baru' : 'Masuk ke akun kamu';
+    $('#authSub').textContent = isReg ? 'Isi username, email, dan kata sandi.' : 'Chat langsung, cari kontak, mulai ngobrol.';
+    $('#authSubmit').textContent = isReg ? 'Daftar' : 'Masuk';
+    $('#switchText').textContent = isReg ? 'Sudah punya akun?' : 'Belum punya akun?';
+    $('#switchBtn').textContent = isReg ? 'Masuk' : 'Daftar';
+    $('#switchBtn').style.display = 'inline';
+  } else {
+    const isGuestReg = mode === 'register';
+    $('#authTitle').textContent = isGuestReg ? 'Daftar sebagai Guest' : 'Masuk sebagai Guest';
+    $('#authSub').textContent = isGuestReg ? 'Buat username dan kata sandi.' : 'Masuk dengan username dan kata sandi.';
+    $('#authSubmit').textContent = isGuestReg ? 'Daftar Guest' : 'Masuk Guest';
+    $('#switchText').textContent = isGuestReg ? 'Sudah punya akun guest?' : 'Belum punya akun guest?';
+    $('#switchBtn').textContent = isGuestReg ? 'Masuk' : 'Daftar';
+    $('#switchBtn').style.display = 'inline';
+  }
   $('#authError').textContent = '';
 }
+
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.onclick = () => {
+    if(tab.dataset.tab === authTab) return;
+    setAuthTab(tab.dataset.tab);
+    if(mode === 'register') setMode('login');
+  };
+});
+
 $('#switchBtn').onclick = ()=> setMode(mode==='login' ? 'register' : 'login');
 
 $('#authSubmit').onclick = async ()=>{
-  const email = ($('#authEmail').value||'').trim();
-  const password = $('#authPassword').value||'';
-  const username = ($('#regUsername').value||'').trim();
   const errEl = $('#authError');
   errEl.textContent = '';
 
-  if(!email || !password){ errEl.textContent = 'Isi email dan kata sandi.'; return; }
-  if(mode==='register' && !username){ errEl.textContent = 'Isi username kamu.'; return; }
+  if(authTab === 'email'){
+    const email = ($('#authEmail').value||'').trim();
+    const password = $('#authPassword').value||'';
+    const username = ($('#regUsername').value||'').trim();
 
-  $('#authSubmit').disabled = true;
-  try{
-    if(mode === 'register'){
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(cred.user, { displayName: username });
-      await set(ref(db, `users/${cred.user.uid}`), {
-        uid: cred.user.uid,
-        username,
-        usernameLower: username.toLowerCase(),
-        email,
-        verified: false,
-        createdAt: Date.now(),
-        lastSeen: Date.now()
-      });
-      toast('Akun dibuat, selamat datang!');
-    } else {
-      await signInWithEmailAndPassword(auth, email, password);
+    if(!email || !password){ errEl.textContent = 'Isi email dan kata sandi.'; return; }
+    if(mode==='register' && !username){ errEl.textContent = 'Isi username kamu.'; return; }
+
+    $('#authSubmit').disabled = true;
+    try{
+      if(mode === 'register'){
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(cred.user, { displayName: username });
+        await set(ref(db, `users/${cred.user.uid}`), {
+          uid: cred.user.uid,
+          username,
+          usernameLower: username.toLowerCase(),
+          email,
+          verified: false,
+          isGuest: false,
+          createdAt: Date.now(),
+          lastSeen: Date.now()
+        });
+        toast('Akun dibuat, selamat datang!');
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    }catch(e){
+      errEl.textContent = friendlyAuthError(e.code);
+    }finally{
+      $('#authSubmit').disabled = false;
     }
-  }catch(e){
-    errEl.textContent = friendlyAuthError(e.code);
-  }finally{
-    $('#authSubmit').disabled = false;
+  } else {
+    const username = ($('#guestUsername').value||'').trim();
+    const password = $('#guestPassword').value||'';
+
+    if(!username || !password){ errEl.textContent = 'Isi username dan kata sandi.'; return; }
+    if(username.length < 3){ errEl.textContent = 'Username minimal 3 karakter.'; return; }
+    if(password.length < 3){ errEl.textContent = 'Kata sandi minimal 3 karakter.'; return; }
+
+    // Check if already banned
+    if(isGuestBanned(username)){
+      errEl.textContent = 'Username ini telah diblokir. Silakan pilih username lain.';
+      return;
+    }
+
+    let result;
+    if(mode === 'register'){
+      result = guestRegister(username, password);
+    } else {
+      result = guestLogin(username, password);
+    }
+
+    if(result.success){
+      const guestUser = {
+        uid: `guest_${username}`,
+        username: username,
+        email: '',
+        isGuest: true,
+        createdAt: result.user.createdAt || Date.now(),
+        lastSeen: Date.now(),
+        guestCreatedAt: result.user.createdAt || Date.now()
+      };
+      
+      await set(ref(db, `users/${guestUser.uid}`), {
+        uid: guestUser.uid,
+        username: guestUser.username,
+        usernameLower: guestUser.username.toLowerCase(),
+        email: '',
+        verified: false,
+        isGuest: true,
+        guestCreatedAt: guestUser.guestCreatedAt,
+        createdAt: guestUser.createdAt,
+        lastSeen: guestUser.lastSeen,
+        banned: false
+      }).catch(()=>{});
+
+      ME = guestUser;
+      isGuest = true;
+      updateUIAfterLogin();
+      toast('Selamat datang, ' + username + '!');
+    } else {
+      errEl.textContent = result.error;
+    }
   }
 };
 
@@ -537,150 +868,85 @@ function friendlyAuthError(code){
     'auth/wrong-password':'Email atau kata sandi salah.',
     'auth/user-not-found':'Akun tidak ditemukan. Coba daftar.',
     'auth/too-many-requests':'Terlalu banyak percobaan, coba lagi nanti.',
-    'auth/unauthorized-domain':'Domain ini belum diizinkan di Firebase (Authentication → Settings → Authorized domains).',
+    'auth/unauthorized-domain':'Domain ini belum diizinkan di Firebase.',
     'auth/network-request-failed':'Koneksi gagal, cek internet kamu.'
   };
   return map[code] || `Terjadi kesalahan (${code||'unknown'}).`;
 }
 
-$('#logoutBtn').onclick = async ()=>{
-  teardownRealtime();
-  await signOut(auth);
-};
-
-$('#adminBtn').onclick = ()=>{
-  if(!isAdmin) return;
-  adminMode = !adminMode;
-  $('#adminBtn').classList.toggle('on', adminMode);
-  renderContacts();
-  toast(adminMode ? 'Mode admin aktif — ketuk tombol centang di sebelah kontak' : 'Mode admin nonaktif');
-};
-
-async function toggleVerified(uid, current){
-  if(!isAdmin) return;
-  try{
-    await update(ref(db, `users/${uid}`), { verified: !current });
-  }catch(e){
-    console.error('Gagal ubah status verifikasi:', e);
-    toast('Gagal ubah verifikasi (cek Database Rules).');
-  }
-}
-
-function teardownRealtime(){
-  if(unsubMsgs){ unsubMsgs(); unsubMsgs=null; }
-  if(unsubUsers){ unsubUsers(); unsubUsers=null; }
-  if(unsubInbox){ unsubInbox(); unsubInbox=null; }
-}
-
-/* =========================================================
-   PROFIL SAYA
-   ========================================================= */
-$('#profileBtn').onclick = ()=>{
-  if(!ME) return;
-  $('#profileAvatar').textContent = initials(ME.username);
-  $('#profileName').innerHTML = escapeHtml(ME.username) + verifiedBadge(usersCache[ME.uid]?.verified);
-  $('#profileUsername').textContent = ME.username;
-  $('#profileEmail').textContent = ME.email || '—';
-  $('#profileJoined').textContent = ME.createdAt
-    ? new Date(ME.createdAt).toLocaleDateString([], { day:'numeric', month:'long', year:'numeric' })
-    : '—';
-  $('#pwForm').style.display = 'none';
-  $('#pwCurrent').value = ''; $('#pwNew').value = ''; $('#pwNewConfirm').value = '';
-  $('#pwError').textContent = ''; $('#pwOk').textContent = '';
-  showView('#view-profile');
-};
-
-$('#profileBackBtn').onclick = ()=> showView('#view-contacts');
-
-$('#copyProfileLinkBtn').onclick = async ()=>{
-  if(!ME) return;
-  const link = buildProfileLink(ME.uid);
-  try{
-    await navigator.clipboard.writeText(link);
-  }catch(e){
-    // Fallback for contexts where the Clipboard API is unavailable/blocked.
-    const ta = document.createElement('textarea');
-    ta.value = link;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    try{ document.execCommand('copy'); }catch(_){}
-    document.body.removeChild(ta);
-  }
-  toast('Link profil berhasil disalin');
-};
-
-$('#showPwFormBtn').onclick = ()=>{
-  const f = $('#pwForm');
-  f.style.display = f.style.display === 'none' ? 'flex' : 'none';
-};
-
-$('#pwSubmitBtn').onclick = async ()=>{
-  const cur = $('#pwCurrent').value || '';
-  const next = $('#pwNew').value || '';
-  const confirmPw = $('#pwNewConfirm').value || '';
-  const errEl = $('#pwError'), okEl = $('#pwOk');
-  errEl.textContent = ''; okEl.textContent = '';
-
-  if(!cur || !next || !confirmPw){ errEl.textContent = 'Isi semua kolom.'; return; }
-  if(next.length < 6){ errEl.textContent = 'Kata sandi baru minimal 6 karakter.'; return; }
-  if(next !== confirmPw){ errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
-
-  $('#pwSubmitBtn').disabled = true;
-  try{
-    const user = auth.currentUser;
-    const cred = EmailAuthProvider.credential(user.email, cur);
-    await reauthenticateWithCredential(user, cred);
-    await updatePassword(user, next);
-    okEl.textContent = 'Kata sandi berhasil diganti.';
-    $('#pwCurrent').value = ''; $('#pwNew').value = ''; $('#pwNewConfirm').value = '';
-    toast('Kata sandi diperbarui.');
-  }catch(e){
-    errEl.textContent = friendlyAuthError(e.code);
-  }finally{
-    $('#pwSubmitBtn').disabled = false;
-  }
-};
-
 /* =========================================================
    SESSION STATE
    ========================================================= */
-let ME = null;        // { uid, username }
-let PEER = null;       // { uid, username }
+let ME = null;
+let isGuest = false;
+let PEER = null;
 let unsubMsgs = null;
 let unsubUsers = null;
 let unsubInbox = null;
-let usersCache = {};   // uid -> user record
-let inboxCache = {};   // peerUid -> { username, lastMessage, lastTs, unread }
+let usersCache = {};
+let inboxCache = {};
 
 const ADMIN_EMAIL = 'opintar114@gmail.com';
 let isAdmin = false;
 let adminMode = false;
 
+function updateUIAfterLogin(){
+  if(!ME) return;
+  const guestLabel = isGuest ? ' <span class="guest-badge">Guest</span>' : '';
+  $('#myName').innerHTML = escapeHtml(ME.username) + guestLabel;
+  $('#myAvatar').textContent = initials(ME.username);
+  $('#brandTag').textContent = ME.username + (isGuest ? ' (guest)' : '');
+  
+  isAdmin = !isGuest && (ME.email || '').toLowerCase() === ADMIN_EMAIL;
+  adminMode = false;
+  $('#adminBtn').style.display = isAdmin ? 'grid' : 'none';
+  $('#adminBtn').classList.remove('on');
+
+  showView('#view-contacts');
+  setupContactsRealtime();
+  openPendingProfileLink();
+}
+
+// Check if current guest is banned
+function checkGuestBanned(){
+  if(!ME || !ME.isGuest) return false;
+  if(isGuestBanned(ME.username)){
+    // Show banned overlay
+    $('#bannedOverlay').style.display = 'flex';
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    return true;
+  }
+  return false;
+}
+
+// Expose to global for onclick
+window.logoutAndClearBanned = function(){
+  clearGuestSession();
+  if(ME){
+    remove(ref(db, `users/${ME.uid}`)).catch(()=>{});
+  }
+  ME = null;
+  isGuest = false;
+  $('#bannedOverlay').style.display = 'none';
+  showView('#view-auth');
+  toast('Akun guest telah dihapus. Silakan buat akun baru.');
+};
+
+// Firebase Auth listener
 onAuthStateChanged(auth, async (user)=>{
   if(user){
+    if(ME && ME.isGuest) {
+      teardownRealtime();
+    }
     ME = {
       uid: user.uid,
       username: user.displayName || (user.email||'').split('@')[0],
       email: user.email || '',
+      isGuest: false,
       createdAt: user.metadata && user.metadata.creationTime ? new Date(user.metadata.creationTime).getTime() : null
     };
-    $('#myName').textContent = ME.username;
-    $('#myAvatar').textContent = initials(ME.username);
-    $('#brandTag').textContent = ME.username;
-
-    isAdmin = (user.email || '').toLowerCase() === ADMIN_EMAIL;
-    adminMode = false;
-    $('#adminBtn').style.display = isAdmin ? 'grid' : 'none';
-    $('#adminBtn').classList.remove('on');
-
-    // Navigate first so a database hiccup never traps the user on the login screen.
-    showView('#view-contacts');
-    setupContactsRealtime();
-
-    // If the app was opened via a profile link (?uid=...), jump straight into that chat.
-    openPendingProfileLink();
+    isGuest = false;
+    updateUIAfterLogin();
 
     try{
       await update(ref(db, `users/${user.uid}`), {
@@ -695,19 +961,67 @@ onAuthStateChanged(auth, async (user)=>{
       toast('Tersambung, tapi gagal sinkron profil (cek Database Rules).');
     }
   } else {
+    // No Firebase user - check guest session
+    if(isGuestSessionValid()){
+      const session = getGuestSession();
+      const guestData = getGuestUserData(session.username);
+      if(guestData){
+        ME = {
+          uid: `guest_${session.username}`,
+          username: session.username,
+          email: '',
+          isGuest: true,
+          createdAt: guestData.createdAt || Date.now(),
+          lastSeen: Date.now(),
+          guestCreatedAt: guestData.createdAt || Date.now()
+        };
+        isGuest = true;
+        updateUIAfterLogin();
+        
+        // Check if banned (just in case)
+        if(checkGuestBanned()) return;
+
+        // Update lastSeen in Firebase
+        set(ref(db, `users/${ME.uid}/lastSeen`), Date.now()).catch(()=>{});
+        return;
+      }
+    }
+    
+    // No user at all
     ME = null;
+    isGuest = false;
     teardownRealtime();
-    usersCache = {}; inboxCache = {};
+    usersCache = {};
+    inboxCache = {};
+    setAuthTab('email');
     setMode('login');
-    $('#authEmail').value=''; $('#authPassword').value=''; $('#regUsername').value='';
+    $('#authEmail').value='';
+    $('#authPassword').value='';
+    $('#regUsername').value='';
+    $('#guestUsername').value='';
+    $('#guestPassword').value='';
     showView('#view-auth');
+    $('#bannedOverlay').style.display = 'none';
   }
 });
 
+$('#logoutBtn').onclick = async ()=>{
+  teardownRealtime();
+  if(isGuest){
+    clearGuestSession();
+    if(ME){
+      remove(ref(db, `users/${ME.uid}`)).catch(()=>{});
+    }
+    ME = null;
+    isGuest = false;
+    toast('Keluar dari guest');
+  } else {
+    await signOut(auth);
+  }
+};
+
 /* =========================================================
    CONTACTS VIEW — realtime users list + realtime inbox
-   (inbox holds per-peer unread count & last message, so new
-   chats auto move to the top and show a red badge live)
    ========================================================= */
 $('#searchInput').addEventListener('input', debounce(renderContacts, 200));
 
@@ -723,10 +1037,13 @@ function setupContactsRealtime(){
     renderContacts();
   }, err=>{ console.error('users listener:', err); });
 
-  unsubInbox = onValue(ref(db, `inbox/${ME.uid}`), snap=>{
-    inboxCache = snap.val() || {};
-    renderContacts();
-  }, err=>{ console.error('inbox listener:', err); });
+  // Guest now has realtime inbox too!
+  if(ME){
+    unsubInbox = onValue(ref(db, `inbox/${ME.uid}`), snap=>{
+      inboxCache = snap.val() || {};
+      renderContacts();
+    }, err=>{ console.error('inbox listener:', err); });
+  }
 }
 
 function renderContacts(){
@@ -734,18 +1051,24 @@ function renderContacts(){
   const listEl = $('#contactsList');
   const term = ($('#searchInput').value||'').trim().toLowerCase();
 
-  let items = Object.values(usersCache).filter(u => u.uid !== ME.uid);
+  let items = Object.values(usersCache).filter(u => 
+    u.uid !== ME.uid && 
+    u.uid !== '' && 
+    !u.banned // Hide banned users
+  );
+  items = items.filter(u => u.username && u.username.length > 0);
+  
   if(term){
     items = items.filter(u => (u.usernameLower||u.username||'').toLowerCase().includes(term));
   }
 
   items = items.map(u=>{
-    const inbox = inboxCache[u.uid];
+    const inbox = inboxCache[u.uid] || {};
     return {
       ...u,
-      unread: inbox?.unread || 0,
-      lastMessage: inbox?.lastMessage || '',
-      lastTs: inbox?.lastTs || 0
+      unread: inbox.unread || 0,
+      lastMessage: inbox.lastMessage || '',
+      lastTs: inbox.lastTs || 0
     };
   }).sort((a,b)=>{
     const at = a.lastTs || a.lastSeen || 0;
@@ -759,11 +1082,19 @@ function renderContacts(){
   }
   listEl.innerHTML = items.map(contactRow).join('');
   listEl.querySelectorAll('[data-uid]').forEach(el=>{
-    el.onclick = ()=> openChatWith(
-      el.getAttribute('data-uid'),
-      el.getAttribute('data-name'),
-      el.getAttribute('data-verified') === '1'
-    );
+    el.onclick = ()=> {
+      const uid = el.getAttribute('data-uid');
+      const user = usersCache[uid];
+      if(user && user.banned) {
+        toast('Pengguna ini telah diblokir');
+        return;
+      }
+      openChatWith(
+        uid,
+        el.getAttribute('data-name'),
+        el.getAttribute('data-verified') === '1'
+      );
+    };
   });
   listEl.querySelectorAll('[data-toggle-uid]').forEach(btn=>{
     btn.onclick = (e)=>{
@@ -779,14 +1110,18 @@ function contactRow(u){
     ? escapeHtml(u.lastMessage)
     : (u.lastSeen ? `Aktif ${timeAgo(u.lastSeen)}` : 'belum aktif');
   const badge = hasUnread ? `<div class="badge">${u.unread > 9 ? '9+' : u.unread}</div>` : '';
-  const verifyBtn = (isAdmin && adminMode)
+  const verifyBtn = (isAdmin && adminMode && !u.isGuest && !u.banned)
     ? `<button class="verify-toggle ${u.verified ? 'on' : ''}" data-toggle-uid="${u.uid}" data-current="${u.verified ? '1' : ''}">${u.verified ? '✓ Verified' : 'Verifikasi'}</button>`
     : '';
-  return `<div class="contact ${hasUnread ? 'has-unread' : ''}" data-uid="${u.uid}" data-name="${escapeHtml(u.username)}" data-verified="${u.verified ? '1' : ''}">
+  const guestTag = u.isGuest ? ' <span style="font-size:.6rem;color:var(--muted);background:var(--card-2);padding:.1rem .4rem;border-radius:4px">guest</span>' : '';
+  const bannedTag = u.banned ? ' <span class="banned-badge">Banned</span>' : '';
+  const bannedClass = u.banned ? 'banned' : '';
+  
+  return `<div class="contact ${hasUnread ? 'has-unread' : ''} ${bannedClass}" data-uid="${u.uid}" data-name="${escapeHtml(u.username)}" data-verified="${u.verified ? '1' : ''}">
     <div class="avatar">${initials(u.username)}</div>
     <div class="meta">
-      <div class="row1"><b>${escapeHtml(u.username)}</b>${verifiedBadge(u.verified)}</div>
-      <div class="small ${hasUnread ? 'unread-preview' : ''}">${preview}</div>
+      <div class="row1"><b>${escapeHtml(u.username)}</b>${guestTag}${bannedTag}${verifiedBadge(u.verified)}</div>
+      <div class="small ${hasUnread ? 'unread-preview' : ''}">${bannedTag ? 'Akun diblokir' : preview}</div>
     </div>
     ${verifyBtn}${badge}
   </div>`;
@@ -801,9 +1136,16 @@ function timeAgo(ts){
 }
 
 /* =========================================================
-   CHAT ROOM — tapping a contact profile jumps straight in
+   CHAT ROOM
    ========================================================= */
 function openChatWith(uid, username, verified){
+  // Check if peer is banned
+  const peerData = usersCache[uid];
+  if(peerData && peerData.banned){
+    toast('Pengguna ini telah diblokir');
+    return;
+  }
+
   PEER = { uid, username, verified };
   $('#peerName').innerHTML = escapeHtml(username) + verifiedBadge(verified);
   $('#peerAvatar').textContent = initials(username);
@@ -811,8 +1153,9 @@ function openChatWith(uid, username, verified){
   $('#msgsEl').innerHTML = '<div class="empty-state">Memuat percakapan…</div>';
   showView('#view-chat');
 
-  // Clear the unread badge for this contact now that the room is open.
-  update(ref(db, `inbox/${ME.uid}/${uid}`), { unread: 0 }).catch(e=>console.error('clear unread:', e));
+  if(ME){
+    update(ref(db, `inbox/${ME.uid}/${uid}`), { unread: 0 }).catch(e=>console.error('clear unread:', e));
+  }
 
   if(unsubMsgs) unsubMsgs();
   const cid = chatIdOf(ME.uid, PEER.uid);
@@ -825,7 +1168,6 @@ function openChatWith(uid, username, verified){
     renderMsgs(arr);
     requestAnimationFrame(()=>{ $('#msgsEl').scrollTop = $('#msgsEl').scrollHeight; });
 
-    // Mark any messages the peer sent me as read, so their bubble turns into a blue double-check.
     arr.filter(m => m.from === PEER.uid && !m.read).forEach(m=>{
       update(ref(db, `chats/${cid}/messages/${m.id}`), { read: true }).catch(()=>{});
     });
@@ -877,7 +1219,7 @@ $('#msgsEl').addEventListener('click', async (e)=>{
     toast('Gagal hapus pesan (cek Database Rules).');
   }
 });
-// Tap a bubble on mobile to reveal its delete button (hover doesn't exist on touch).
+
 $('#msgsEl').addEventListener('click', (e)=>{
   const bubble = e.target.closest('.b.me');
   if(!bubble || e.target.closest('.msg-del')) return;
@@ -892,6 +1234,14 @@ async function sendMessage(){
   const input = $('#textInput');
   const text = (input.value||'').trim();
   if(!text || !ME || !PEER) return;
+  
+  // Check if peer is banned before sending
+  const peerData = usersCache[PEER.uid];
+  if(peerData && peerData.banned){
+    toast('Tidak bisa mengirim pesan ke pengguna yang diblokir');
+    return;
+  }
+
   const cid = chatIdOf(ME.uid, PEER.uid);
   const newRef = push(ref(db, `chats/${cid}/messages`));
   const now = Date.now();
@@ -900,15 +1250,140 @@ async function sendMessage(){
   await set(newRef, { from: ME.uid, fromName: ME.username, to: PEER.uid, text, ts: now, read: false });
   await update(ref(db, `users/${ME.uid}`), { lastSeen: now });
 
-  // My side of the inbox: I've obviously "read" what I just sent.
   await update(ref(db, `inbox/${ME.uid}/${PEER.uid}`), {
     username: PEER.username, lastMessage: text, lastTs: now, unread: 0
   });
-  // Recipient's side: bump their unread badge so it shows red at the top of their list.
   await update(ref(db, `inbox/${PEER.uid}/${ME.uid}`), {
     username: ME.username, lastMessage: text, lastTs: now, unread: increment(1)
   });
 }
+
+/* =========================================================
+   PROFIL SAYA
+   ========================================================= */
+$('#profileBtn').onclick = ()=>{
+  if(!ME) return;
+  const guestLabel = ME.isGuest ? ' <span class="guest-badge">Guest</span>' : '';
+  $('#profileAvatar').textContent = initials(ME.username);
+  $('#profileName').innerHTML = escapeHtml(ME.username) + guestLabel + verifiedBadge(usersCache[ME.uid]?.verified);
+  $('#profileUsername').textContent = ME.username;
+  $('#profileEmail').textContent = ME.isGuest ? '(Guest — tidak pakai email)' : (ME.email || '—');
+  $('#profileJoined').textContent = ME.createdAt
+    ? new Date(ME.createdAt).toLocaleDateString([], { day:'numeric', month:'long', year:'numeric' })
+    : '—';
+  
+  // Show guest expiry info
+  if(ME.isGuest && ME.guestCreatedAt){
+    const expiryDate = new Date(ME.guestCreatedAt + GUEST_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    const daysLeft = Math.ceil((expiryDate - Date.now()) / (24 * 60 * 60 * 1000));
+    $('#guestExpiryField').style.display = 'block';
+    $('#guestExpiry').textContent = `${expiryDate.toLocaleDateString()} (${daysLeft > 0 ? daysLeft + ' hari lagi' : 'KEDALUWARSA'})`;
+    if(daysLeft <= 0) $('#guestExpiry').style.color = 'var(--danger)';
+    else if(daysLeft <= 7) $('#guestExpiry').style.color = 'var(--accent)';
+    else $('#guestExpiry').style.color = 'var(--muted)';
+  } else {
+    $('#guestExpiryField').style.display = 'none';
+  }
+  
+  $('#pwForm').style.display = 'none';
+  $('#pwCurrent').value = ''; $('#pwNew').value = ''; $('#pwNewConfirm').value = '';
+  $('#pwError').textContent = ''; $('#pwOk').textContent = '';
+  showView('#view-profile');
+};
+
+$('#profileBackBtn').onclick = ()=> showView('#view-contacts');
+
+$('#copyProfileLinkBtn').onclick = async ()=>{
+  if(!ME) return;
+  const link = buildProfileLink(ME.uid);
+  try{
+    await navigator.clipboard.writeText(link);
+  }catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = link;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand('copy'); }catch(_){}
+    document.body.removeChild(ta);
+  }
+  toast('Link profil berhasil disalin');
+};
+
+$('#showPwFormBtn').onclick = ()=>{
+  if(ME.isGuest){
+    toast('Guest tidak bisa ganti kata sandi melalui Firebase.');
+    return;
+  }
+  const f = $('#pwForm');
+  f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+};
+
+$('#pwSubmitBtn').onclick = async ()=>{
+  if(ME.isGuest){
+    toast('Guest tidak bisa ganti kata sandi.');
+    return;
+  }
+  const cur = $('#pwCurrent').value || '';
+  const next = $('#pwNew').value || '';
+  const confirmPw = $('#pwNewConfirm').value || '';
+  const errEl = $('#pwError'), okEl = $('#pwOk');
+  errEl.textContent = ''; okEl.textContent = '';
+
+  if(!cur || !next || !confirmPw){ errEl.textContent = 'Isi semua kolom.'; return; }
+  if(next.length < 6){ errEl.textContent = 'Kata sandi baru minimal 6 karakter.'; return; }
+  if(next !== confirmPw){ errEl.textContent = 'Konfirmasi kata sandi tidak cocok.'; return; }
+
+  $('#pwSubmitBtn').disabled = true;
+  try{
+    const user = auth.currentUser;
+    const cred = EmailAuthProvider.credential(user.email, cur);
+    await reauthenticateWithCredential(user, cred);
+    await updatePassword(user, next);
+    okEl.textContent = 'Kata sandi berhasil diganti.';
+    $('#pwCurrent').value = ''; $('#pwNew').value = ''; $('#pwNewConfirm').value = '';
+    toast('Kata sandi diperbarui.');
+  }catch(e){
+    errEl.textContent = friendlyAuthError(e.code);
+  }finally{
+    $('#pwSubmitBtn').disabled = false;
+  }
+};
+
+$('#adminBtn').onclick = ()=>{
+  if(!isAdmin) return;
+  adminMode = !adminMode;
+  $('#adminBtn').classList.toggle('on', adminMode);
+  renderContacts();
+  toast(adminMode ? 'Mode admin aktif — ketuk tombol centang di sebelah kontak' : 'Mode admin nonaktif');
+};
+
+async function toggleVerified(uid, current){
+  if(!isAdmin) return;
+  try{
+    await update(ref(db, `users/${uid}`), { verified: !current });
+  }catch(e){
+    console.error('Gagal ubah status verifikasi:', e);
+    toast('Gagal ubah verifikasi (cek Database Rules).');
+  }
+}
+
+function teardownRealtime(){
+  if(unsubMsgs){ unsubMsgs(); unsubMsgs=null; }
+  if(unsubUsers){ unsubUsers(); unsubUsers=null; }
+  if(unsubInbox){ unsubInbox(); unsubInbox=null; }
+}
+
+// Init auth tab
+setAuthTab('email');
+
+// Periodically check if guest is banned (every 60 seconds)
+setInterval(() => {
+  if(ME && ME.isGuest){
+    checkGuestBanned();
+  }
+}, 60000);
 </script>
 </body>
 </html>
