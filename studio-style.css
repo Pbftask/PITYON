@@ -64,6 +64,15 @@ input{font-family:inherit;}
 .brand-studio{color:var(--accent);text-shadow:var(--glow-md);}
 
 .home-scroll{flex:1;overflow-y:auto;padding:0 16px calc(100px + var(--safe-b));-webkit-overflow-scrolling:touch;}
+
+/* ---------------- PAPAN IKLAN ---------------- */
+.ad-slider{width:100%;margin:12px 0;overflow:hidden;position:relative;border-radius:14px;background:#12151C;border:1px solid rgba(255,255,255,.08);flex-shrink:0;}
+.ad-track{display:flex;width:100%;transition:transform .55s cubic-bezier(.4,0,.2,1);touch-action:pan-y;}
+.ad-item{min-width:100%;display:block;aspect-ratio:16/6;overflow:hidden;}
+.ad-item img{width:100%;height:100%;display:block;object-fit:cover;user-select:none;-webkit-user-drag:none;}
+.ad-dots{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:6px;padding:5px 8px;border-radius:20px;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);}
+.ad-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.45);transition:all .25s ease;}
+.ad-dot.active{width:18px;border-radius:10px;background:#fff;}
 .section-row{display:flex;align-items:center;justify-content:space-between;margin:6px 0 12px;}
 .section-row h2{font-size:17px;margin:0;font-family:var(--ff-display);}
 .link-btn{color:var(--accent);font-size:13px;font-weight:600;}
@@ -202,6 +211,62 @@ input{font-family:inherit;}
 }
 .timecode{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
 .transport-spacer{flex:1;}
+.zoom-slider{width:64px;accent-color:var(--accent);}
+
+.timeline-toolbar-2{
+  display:flex;gap:6px;padding:2px 12px 6px;overflow-x:auto;flex-shrink:0;
+}
+.mini-tool-btn{
+  flex-shrink:0;height:30px;padding:0 10px;border-radius:8px;background:var(--surface-3);
+  color:var(--muted);font-size:13px;border:1px solid var(--line);white-space:nowrap;
+}
+.mini-tool-btn.active{background:var(--accent);color:#02150B;border-color:var(--accent);}
+
+.multi-select-bar{
+  position:absolute;left:8px;right:8px;bottom:8px;z-index:15;
+  display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;
+  background:var(--surface-2);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.4);
+  font-size:12px;color:var(--muted);
+}
+.multi-select-bar.hidden{display:none;}
+.multi-select-bar #multiSelectCount{flex:1;font-weight:600;color:var(--text);}
+.pill-btn.sm{padding:6px 10px;font-size:12px;}
+.pill-btn.danger{color:#ff5a5f;border-color:#ff5a5f;}
+.clip.multi-selected{outline:2px solid var(--accent2);outline-offset:2px;}
+
+/* Fase 6 — Pen Tool (Custom Path masks + motion path point editing) */
+.pen-tool-overlay{position:absolute;inset:0;pointer-events:auto;}
+.pen-tool-overlay.hidden{display:none;}
+
+/* Fase 9 — Performance Monitor */
+.perf-monitor{position:absolute;top:44px;left:10px;background:rgba(0,0,0,.6);color:#00FF6A;font-size:10.5px;line-height:1.5;padding:6px 9px;border-radius:8px;font-family:monospace;pointer-events:none;z-index:20;}
+.perf-monitor.hidden{display:none;}
+.pen-point{position:absolute;width:18px;height:18px;margin:-9px;border-radius:50%;background:#FF2E7A;border:2px solid #fff;touch-action:none;cursor:grab;z-index:3;}
+.pen-path-svg{position:absolute;top:0;left:0;pointer-events:none;}
+.pen-path-poly{fill:rgba(255,46,122,.12);stroke:#FF2E7A;stroke-width:1.5;stroke-dasharray:4 3;}
+.motion-path-svg{position:absolute;top:0;left:0;pointer-events:none;}
+.motion-path-line{fill:none;stroke:var(--accent);stroke-width:1.5;stroke-dasharray:5 4;opacity:.85;}
+.motion-path-point{position:absolute;width:14px;height:14px;margin:-7px;border-radius:50%;background:var(--accent);border:2px solid #02150B;touch-action:none;cursor:grab;pointer-events:auto;z-index:3;}
+
+/* Fase 6 — mask stack list */
+.mask-list{margin:10px 0;border-radius:10px;overflow:hidden;border:1px solid var(--line);}
+.mask-list-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surface-3);border-bottom:1px solid var(--line);font-size:13px;color:var(--muted);}
+.mask-list-row:last-child{border-bottom:none;}
+.mask-list-row.active{background:var(--surface-2);color:var(--text);}
+.mask-list-del{color:#ff5a5f;font-size:16px;padding:2px 6px;}
+
+.comp-breadcrumb{
+  display:flex;align-items:center;gap:4px;padding:6px 12px;font-size:12px;color:var(--muted);
+  background:var(--surface-2);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap;flex-shrink:0;
+}
+.comp-breadcrumb.hidden{display:none;}
+.comp-breadcrumb button{color:var(--muted);padding:2px 4px;flex-shrink:0;}
+.comp-breadcrumb button.current{color:var(--accent);font-weight:600;}
+.timeline-marker{position:absolute;top:0;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #FFB020;cursor:pointer;}
+.timeline-marker-line{position:absolute;top:9px;width:1px;background:rgba(255,176,32,.5);pointer-events:none;}
+
+/* Fase 4 — magnetic snap guide on the timeline while dragging/trimming */
+.timeline-snap-guide{position:absolute;top:0;bottom:0;width:1px;background:var(--accent2);pointer-events:none;z-index:12;}
 
 .timeline-wrap{
   flex-shrink:0;height:34vh;min-height:190px;max-height:280px;
@@ -331,6 +396,17 @@ input{font-family:inherit;}
 }
 .preset-item.active{border-color:var(--accent);color:var(--accent);background:rgba(0,255,106,.1);box-shadow:var(--glow-sm);}
 
+/* Fase 7 — Effect Engine: favorite star + active-effect stack management */
+.preset-item-wrap{position:relative;}
+.preset-item-wrap .preset-item{width:100%;}
+.preset-fav-star{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center;}
+.preset-fav-star.active{color:#FFB020;border-color:#FFB020;}
+.fx-active-row{background:var(--surface-3);border-radius:12px;padding:10px 12px;margin-bottom:10px;border:1px solid var(--line);}
+.fx-active-row.disabled{opacity:.45;}
+.fx-active-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:13px;font-weight:600;}
+.fx-active-ctrls{display:flex;gap:4px;}
+.fx-active-ctrls button{width:26px;height:26px;border-radius:7px;background:var(--surface-2);color:var(--muted);font-size:13px;}
+
 .slider-row{margin-bottom:16px;}
 .slider-row .slider-label{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:8px;color:var(--muted);}
 .slider-row .slider-label b{color:var(--text);font-weight:600;}
@@ -370,7 +446,14 @@ input{font-family:inherit;}
 .list-row .val{color:var(--accent);font-weight:600;font-size:13px;}
 
 .keyframe-track{position:relative;height:28px;background:var(--surface-3);border-radius:8px;margin:10px 0 16px;}
-.keyframe-dot{position:absolute;top:50%;width:14px;height:14px;border-radius:3px;background:var(--accent);transform:translate(-50%,-50%) rotate(45deg);box-shadow:var(--glow-sm);}
+.keyframe-dot{position:absolute;top:50%;width:16px;height:16px;border-radius:3px;background:var(--accent);transform:translate(-50%,-50%) rotate(45deg);box-shadow:var(--glow-sm);touch-action:none;}
+.keyframe-dot.selected{background:#fff;box-shadow:0 0 0 2px var(--accent);}
+.keyframe-dot.multi-selected{outline:2px solid var(--accent2);outline-offset:2px;}
+.keyframe-playhead{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;pointer-events:none;}
+
+/* Fase 3 — Graph Editor */
+.graph-editor-wrap{margin:8px 0 16px;background:var(--surface-3);border-radius:10px;padding:6px;}
+.graph-editor-canvas{width:100%;height:180px;display:block;touch-action:none;border-radius:6px;}
 
 /* ---------- Modals ---------- */
 .modal-backdrop{

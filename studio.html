@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7405559855984003" crossorigin="anonymous"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0A0C10">
 <title>Jedag Studio</title>
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7405559855984003"
-     crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="studio-style.css">
@@ -31,6 +30,15 @@
   </header>
 
   <main class="home-scroll">
+    <!-- PAPAN IKLAN -->
+    <div class="ad-slider">
+      <div class="ad-track">
+        <a class="ad-item" href="#" onclick="return false;"><img src="foto-iklan-1.png" alt="Iklan 1"></a>
+        <a class="ad-item" href="index.html"><img src="foto-iklan-2.png" alt="Iklan 2"></a>
+        <a class="ad-item" href="photolab.html"><img src="foto-iklan-3.png" alt="Iklan 3"></a>
+      </div>
+      <div class="ad-dots"></div>
+    </div>
     <div class="section-row">
       <h2>Latest Projects</h2>
       <button class="link-btn" id="btnViewAll">Lihat semua</button>
@@ -55,6 +63,15 @@
     <span class="page-title">Projects</span>
   </header>
   <main class="home-scroll">
+    <!-- PAPAN IKLAN -->
+    <div class="ad-slider">
+      <div class="ad-track">
+        <a class="ad-item" href="#" onclick="return false;"><img src="foto-iklan-1.png" alt="Iklan 1"></a>
+        <a class="ad-item" href="index.html"><img src="foto-iklan-2.png" alt="Iklan 2"></a>
+        <a class="ad-item" href="photolab.html"><img src="foto-iklan-3.png" alt="Iklan 3"></a>
+      </div>
+      <div class="ad-dots"></div>
+    </div>
     <div id="projectListFull" class="project-list"></div>
   </main>
 </div>
@@ -68,6 +85,15 @@
     </button>
   </header>
   <main class="home-scroll">
+    <!-- PAPAN IKLAN -->
+    <div class="ad-slider">
+      <div class="ad-track">
+        <a class="ad-item" href="#" onclick="return false;"><img src="foto-iklan-1.png" alt="Iklan 1"></a>
+        <a class="ad-item" href="index.html"><img src="foto-iklan-2.png" alt="Iklan 2"></a>
+        <a class="ad-item" href="photolab.html"><img src="foto-iklan-3.png" alt="Iklan 3"></a>
+      </div>
+      <div class="ad-dots"></div>
+    </div>
     <div class="template-hint">Import file <b>.jedag.xml</b> untuk memakai template, atau simpan project sebagai template baru.</div>
     <div id="templateList" class="template-grid"></div>
   </main>
@@ -79,6 +105,15 @@
     <span class="page-title">Tutorials</span>
   </header>
   <main class="home-scroll">
+    <!-- PAPAN IKLAN -->
+    <div class="ad-slider">
+      <div class="ad-track">
+        <a class="ad-item" href="#" onclick="return false;"><img src="foto-iklan-1.png" alt="Iklan 1"></a>
+        <a class="ad-item" href="index.html"><img src="foto-iklan-2.png" alt="Iklan 2"></a>
+        <a class="ad-item" href="photolab.html"><img src="foto-iklan-3.png" alt="Iklan 3"></a>
+      </div>
+      <div class="ad-dots"></div>
+    </div>
     <div class="tutorial-card"><h3>1. Mulai Project</h3><p class="muted">Ketuk "Buat Project Baru", pilih rasio canvas, lalu tambahkan media lewat tombol + di kanan bawah editor.</p></div>
     <div class="tutorial-card"><h3>2. Sinkron Beat</h3><p class="muted">Import audio lalu ketuk "Auto Beat" untuk mendeteksi ketukan otomatis. Marker beat akan muncul di timeline audio.</p></div>
     <div class="tutorial-card"><h3>3. Efek Jedag-Jedug</h3><p class="muted">Pilih clip di timeline, buka tab Effect, lalu pilih preset seperti Beat Zoom atau Beat Shake. Aktifkan "Snap to Beat" agar efek otomatis jatuh di ketukan.</p></div>
@@ -307,5 +342,45 @@
 <script src="studio-script.js"></script>
 <script src="effect.js"></script>
 <script src="editor.js"></script>
+<script>
+/* ===== PAPAN IKLAN AUTO SLIDER (universal, mendukung banyak instance) ===== */
+(function () {
+  document.querySelectorAll('.ad-slider').forEach(function (slider) {
+    const track = slider.querySelector('.ad-track');
+    const items = slider.querySelectorAll('.ad-item');
+    const dotsContainer = slider.querySelector('.ad-dots');
+    if (!track || !items.length || !dotsContainer) return;
+    let current = 0, timer;
+    items.forEach((item, index) => {
+      const dot = document.createElement('span');
+      dot.className = 'ad-dot' + (index === 0 ? ' active' : '');
+      dot.addEventListener('click', () => { goTo(index); restart(); });
+      dotsContainer.appendChild(dot);
+    });
+    const dots = dotsContainer.querySelectorAll('.ad-dot');
+    function goTo(i) {
+      current = i;
+      track.style.transform = `translateX(-${current * 100}%)`;
+      dots.forEach((d, idx) => d.classList.toggle('active', idx === current));
+    }
+    function start() {
+      timer = setInterval(() => { current = (current + 1) % items.length; goTo(current); }, 3000);
+    }
+    function restart() { clearInterval(timer); start(); }
+    let startX = 0, endX = 0;
+    slider.addEventListener('touchstart', e => { startX = e.touches[0].clientX; clearInterval(timer); }, { passive: true });
+    slider.addEventListener('touchend', e => {
+      endX = e.changedTouches[0].clientX;
+      const d = endX - startX;
+      if (Math.abs(d) > 50) {
+        current = d < 0 ? (current + 1) % items.length : (current - 1 + items.length) % items.length;
+        goTo(current);
+      }
+      start();
+    }, { passive: true });
+    start();
+  });
+})();
+</script>
 </body>
 </html>
