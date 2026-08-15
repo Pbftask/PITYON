@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.photolab.luminux",
+      "sha256_cert_fingerprints": [
+        "3F:E5:79:67:C1:5F:81:EE:39:EA:2B:9B:88:DD:96:A7:50:6C:1B:5B:90:32:60:6E:CB:EA:04:BB:DB:15:EE:3C"
+      ]
+    }
+  }
+]
