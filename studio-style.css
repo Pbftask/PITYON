@@ -64,15 +64,6 @@ input{font-family:inherit;}
 .brand-studio{color:var(--accent);text-shadow:var(--glow-md);}
 
 .home-scroll{flex:1;overflow-y:auto;padding:0 16px calc(100px + var(--safe-b));-webkit-overflow-scrolling:touch;}
-
-/* ---------------- PAPAN IKLAN ---------------- */
-.ad-slider{width:100%;margin:12px 0;overflow:hidden;position:relative;border-radius:14px;background:#12151C;border:1px solid rgba(255,255,255,.08);flex-shrink:0;}
-.ad-track{display:flex;width:100%;transition:transform .55s cubic-bezier(.4,0,.2,1);touch-action:pan-y;}
-.ad-item{min-width:100%;display:block;aspect-ratio:16/6;overflow:hidden;}
-.ad-item img{width:100%;height:100%;display:block;object-fit:cover;user-select:none;-webkit-user-drag:none;}
-.ad-dots{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:6px;padding:5px 8px;border-radius:20px;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);}
-.ad-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.45);transition:all .25s ease;}
-.ad-dot.active{width:18px;border-radius:10px;background:#fff;}
 .section-row{display:flex;align-items:center;justify-content:space-between;margin:6px 0 12px;}
 .section-row h2{font-size:17px;margin:0;font-family:var(--ff-display);}
 .link-btn{color:var(--accent);font-size:13px;font-weight:600;}

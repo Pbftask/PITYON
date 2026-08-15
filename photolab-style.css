@@ -988,16 +988,6 @@ select.select-field{
 }
 .login-foot{font-size:10.5px;color:var(--text-dim);line-height:1.5;margin:20px 0 0;opacity:0.75;}
 
-/* ---------------- PAPAN IKLAN ---------------- */
-.ad-slider{width:100%;margin:16px 0 0;overflow:hidden;position:relative;border-radius:14px;background:var(--bg-soft,#12151C);border:1px solid var(--border);flex-shrink:0;}
-.ad-track{display:flex;width:100%;transition:transform .55s cubic-bezier(.4,0,.2,1);touch-action:pan-y;}
-.ad-item{min-width:100%;display:block;aspect-ratio:16/6;overflow:hidden;}
-.ad-item img{width:100%;height:100%;display:block;object-fit:cover;user-select:none;-webkit-user-drag:none;}
-.ad-dots{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:6px;padding:5px 8px;border-radius:20px;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);}
-.ad-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.45);transition:all .25s ease;}
-.ad-dot.active{width:18px;border-radius:10px;background:#fff;}
-#app > .ad-slider{margin:0;border-radius:0;border-left:0;border-right:0;border-top:0;}
-
 /* ---------------- AUTH VIEWS (Email/Password) ---------------- */
 .auth-view{display:none;width:100%;flex-direction:column;align-items:stretch;}
 .auth-view.active{display:flex;animation:fadeIn .18s ease;}
