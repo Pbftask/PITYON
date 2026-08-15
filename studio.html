@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0A0C10">
 <title>Jedag Studio</title>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7405559855984003"
+     crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="studio-style.css">
@@ -22,6 +24,9 @@
     </div>
     <button class="icon-btn avatar-btn" id="btnAvatar" aria-label="Akun">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+    </button>
+    <button class="icon-btn" id="btnRestoreProject" aria-label="Restore Project">
+      <svg viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M4 3h16"/></svg>
     </button>
   </header>
 
@@ -101,6 +106,8 @@
       <div id="previewGridOverlay" class="preview-grid-overlay hidden"></div>
       <div id="previewSafeArea" class="preview-safe-area hidden"></div>
       <div id="transformGizmo" class="transform-gizmo"></div>
+      <div id="penToolOverlay" class="pen-tool-overlay hidden"></div>
+      <div id="perfMonitor" class="perf-monitor hidden"></div>
     </div>
     <button class="icon-btn preview-fullscreen-btn" id="btnFullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg></button>
     <div class="ratio-chip" id="ratioChip">9:16</div>
@@ -116,17 +123,35 @@
     <span class="timecode" id="timecode">00:00:00 / 00:00:00</span>
     <div class="transport-spacer"></div>
     <button class="icon-btn sm" id="btnZoomOut" aria-label="Zoom out">-</button>
+    <input type="range" id="zoomSlider" class="zoom-slider" min="20" max="400" value="90" step="1" aria-label="Zoom timeline">
     <button class="icon-btn sm" id="btnZoomIn" aria-label="Zoom in">+</button>
     <button class="icon-btn sm" id="btnSplit" aria-label="Split clip"><svg viewBox="0 0 24 24"><path d="M6 3v18M18 3v18M9 12h6"/></svg></button>
   </div>
+  <div class="timeline-toolbar-2" id="timelineToolbar2">
+    <button class="mini-tool-btn" id="btnFrameBack" title="Frame sebelumnya">⏮</button>
+    <button class="mini-tool-btn" id="btnFrameFwd" title="Frame berikutnya">⏭</button>
+    <button class="mini-tool-btn" id="btnAddMarker" title="Tambah Marker">🚩</button>
+    <button class="mini-tool-btn" id="btnCamera" title="Kamera">🎥</button>
+    <button class="mini-tool-btn" id="btnMultiSelect" title="Multi-select clip">☑️</button>
+    <button class="mini-tool-btn" id="btnRipple" title="Ripple Delete">🧲🗑</button>
+  </div>
 
   <div class="timeline-wrap" id="timelineWrap">
+    <div class="comp-breadcrumb hidden" id="compBreadcrumb"></div>
     <div class="timeline-ruler" id="timelineRuler"></div>
     <div class="timeline-scroll" id="timelineScroll">
       <div class="timeline-tracks" id="timelineTracks"></div>
       <div class="playhead" id="playhead"></div>
     </div>
     <div class="timeline-empty-hint" id="timelineEmptyHint">Ketuk + untuk menambahkan media pertamamu</div>
+    <div class="multi-select-bar hidden" id="multiSelectBar">
+      <span id="multiSelectCount">0 dipilih</span>
+      <button class="pill-btn ghost sm" id="bMultiSelPrecompose">Pre-compose</button>
+      <button class="pill-btn ghost sm" id="bMultiSelDup">Duplikat</button>
+      <button class="pill-btn ghost sm" id="bMultiSelHide">Hide</button>
+      <button class="pill-btn ghost sm" id="bMultiSelLock">Lock</button>
+      <button class="pill-btn ghost sm danger" id="bMultiSelDel">Hapus</button>
+    </div>
   </div>
 
   <!-- clip context tabs (shows when a clip is selected) -->
@@ -189,6 +214,7 @@
     <button class="add-item" data-add="beat"><span class="add-icon">🥁</span>Beat</button>
     <button class="add-item" data-add="adjustment"><span class="add-icon">🎚️</span>Adjustment</button>
     <button class="add-item" data-add="subtitle"><span class="add-icon">💬</span>Subtitle</button>
+    <button class="add-item" data-add="null"><span class="add-icon">⊕</span>Null Object</button>
   </div>
 </div>
 
@@ -225,18 +251,24 @@
     <div class="option-row">
       <span>Resolusi</span>
       <div class="seg" id="segRes">
+        <button class="seg-opt" data-res="480">480p</button>
         <button class="seg-opt active" data-res="720">720p</button>
         <button class="seg-opt" data-res="1080">1080p</button>
+        <button class="seg-opt" data-res="1440">1440p</button>
       </div>
     </div>
     <div class="option-row">
       <span>Frame rate</span>
       <div class="seg" id="segFps">
-        <button class="seg-opt active" data-fps="30">30 FPS</button>
-        <button class="seg-opt" data-fps="60">60 FPS</button>
+        <button class="seg-opt" data-fps="24">24</button>
+        <button class="seg-opt" data-fps="25">25</button>
+        <button class="seg-opt active" data-fps="30">30</button>
+        <button class="seg-opt" data-fps="50">50</button>
+        <button class="seg-opt" data-fps="60">60</button>
       </div>
     </div>
     <p class="muted small" id="exportFormatNote">Format output: WebM (MP4 tidak didukung browser ini)</p>
+    <p class="muted small" id="exportSizeEstimate">Estimasi ukuran file: —</p>
     <div class="export-progress hidden" id="exportProgress">
       <div class="export-progress-bar"><div id="exportProgressFill"></div></div>
       <span id="exportProgressLabel">Merender... 0%</span>
@@ -267,6 +299,7 @@
 <input type="file" id="fileInputPhoto" accept="image/*" multiple hidden>
 <input type="file" id="fileInputAudio" accept="audio/*" hidden>
 <input type="file" id="fileInputXml" accept=".xml,.jedag.xml,text/xml" hidden>
+<input type="file" id="fileInputRestore" accept=".json,.jedagbackup.json,application/json" hidden>
 <input type="file" id="fileInputMap" accept="video/*,image/*" hidden>
 
 <div class="toast" id="toast"></div>
