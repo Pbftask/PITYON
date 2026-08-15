@@ -132,7 +132,7 @@ ready(function(){
     });
     onModal('#peFdFav','click', async ()=>{ B.haptic(); const fav=await C.toggleFavorite('feed',id); if(fav!==null) B.toast(fav?'Ditambah ke favorit':'Dihapus dari favorit'); });
     onModal('#peFdShare','click', async ()=>{
-      const shareUrl=location.href.split('#')[0]+'#post-'+id;
+      const shareUrl=C.buildShareLink('feed',id);
       if(navigator.share){ try{ await navigator.share({title:d.title, text:d.description, url:shareUrl}); }catch(e){} }
       else{ try{ await navigator.clipboard.writeText(shareUrl); B.toast('Link disalin.','success'); }catch(e){ B.toast('Gagal menyalin link.'); } }
     });

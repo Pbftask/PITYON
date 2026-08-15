@@ -518,6 +518,7 @@ ready(function(){
       <div class="pe-detail-actions">
         <button class="btn-ghost" id="peCopyBtn" style="flex:1;">Copy</button>
         <button class="btn-ghost" id="peDownloadBtn" style="flex:1;">Download</button>
+        <button class="btn-ghost" id="peShareLinkBtn" style="flex:1;"><i class="fa-solid fa-link"></i> Salin Link</button>
         ${isOwner?'<button class="btn-ghost" id="peEditBtn" style="flex:1;">Edit</button><button class="btn-ghost" id="peDeleteBtn" style="flex:1;color:#ff5c7a;">Hapus</button>':''}
       </div>
     `);
@@ -527,6 +528,7 @@ ready(function(){
     onModal('#peFavBtn','click', async ()=>{ B.haptic(); const fav=await C.toggleFavorite('preset',id); if(fav!==null) B.toast(fav?'Ditambah ke favorit':'Dihapus dari favorit'); });
     onModal('#peCopyBtn','click', ()=>duplicatePreset(id,d));
     onModal('#peDownloadBtn','click', async ()=>{ await C.incrementCounter('presets',id,'downloadCount',1); B.toast('Preset disimpan.','success'); });
+    onModal('#peShareLinkBtn','click', ()=>C.copyShareLink('preset',id));
     onModal('#peEditBtn','click', ()=>openPresetForm({id,...d}));
     onModal('#peDeleteBtn','click', ()=>deletePreset(id,d.creatorUid));
     onModal('.pe-detail-creator','click', ()=>{ if(window.PECommunity.openProfile) window.PECommunity.openProfile(d.creatorUid); });
@@ -556,12 +558,16 @@ ready(function(){
         <button class="btn-ghost" id="peOvLikeBtn"><i class="fa-solid fa-heart"></i> Like</button>
         <button class="btn-ghost" id="peOvFavBtn"><i class="fa-solid fa-star"></i> Favorit</button>
       </div>
-      ${isOwner?`<div class="pe-detail-actions"><button class="btn-ghost" id="peOvEditBtn" style="flex:1;">Edit</button><button class="btn-ghost" id="peOvDeleteBtn" style="flex:1;color:#ff5c7a;">Hapus</button></div>`:''}
+      <div class="pe-detail-actions">
+        <button class="btn-ghost" id="peOvShareLinkBtn" style="flex:1;"><i class="fa-solid fa-link"></i> Salin Link</button>
+        ${isOwner?'<button class="btn-ghost" id="peOvEditBtn" style="flex:1;">Edit</button><button class="btn-ghost" id="peOvDeleteBtn" style="flex:1;color:#ff5c7a;">Hapus</button>':''}
+      </div>
     `);
     onModal('[data-close]','click',closeModal);
     onModal('#peOvAddBtn','click', ()=>{ addOverlayLayer(d,id); closeModal(); });
     onModal('#peOvLikeBtn','click', async ()=>{ B.haptic(); const liked=await C.toggleLike('overlay',id); if(liked!==null) B.toast(liked?'Disukai':'Batal suka'); });
     onModal('#peOvFavBtn','click', async ()=>{ B.haptic(); const fav=await C.toggleFavorite('overlay',id); if(fav!==null) B.toast(fav?'Ditambah ke favorit':'Dihapus dari favorit'); });
+    onModal('#peOvShareLinkBtn','click', ()=>C.copyShareLink('overlay',id));
     onModal('#peOvEditBtn','click', ()=>openOverlayForm({id,...d}));
     onModal('#peOvDeleteBtn','click', ()=>deleteOverlay(id,d.creatorUid));
     onModal('.pe-detail-creator','click', ()=>{ if(window.PECommunity.openProfile) window.PECommunity.openProfile(d.creatorUid); });

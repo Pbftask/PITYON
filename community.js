@@ -244,12 +244,69 @@ ready(function(){
   // Expose the write/read layer so Preset/Overlay/Feed phases (and their
   // own separately-loaded files) can reuse it instead of re-implementing
   // Firestore access.
+  // Builds a shareable link that reopens the right detail view when
+  // visited. type is 'feed' | 'preset' | 'overlay'; id is the Firestore
+  // doc id. Kept centralized here so every "Salin Link" button across
+  // feed/preset/overlay produces the exact same URL shape.
+  function buildShareLink(type, id){
+    return 'https://luminux.my.id/photolab.html?open=' + encodeURIComponent(type) + '-' + encodeURIComponent(id);
+  }
+
+  // Copies a share link to the clipboard and toasts the result. Shared by
+  // the feed/preset/overlay "Salin Link" buttons.
+  async function copyShareLink(type, id){
+    const url = buildShareLink(type, id);
+    try{
+      await navigator.clipboard.writeText(url);
+      B.toast('Link disalin.', 'success');
+    }catch(e){
+      B.toast('Gagal menyalin link.');
+    }
+  }
+
+  // If the page was opened via a shared link (?open=type-id), reopen the
+  // matching detail modal. Called once the user is authenticated (the app
+  // is gated behind login, so there's nothing to show before that) — see
+  // the resolveSharedLink() call wired into photolab-script.js's
+  // handleAuthenticatedState(). Safe to call more than once; it only
+  // triggers on the first successful match, then cleans the URL so a
+  // refresh/back-nav doesn't reopen it.
+  let sharedLinkResolved = false;
+  function resolveSharedLink(){
+    if(sharedLinkResolved) return;
+    const params = new URLSearchParams(location.search);
+    const open = params.get('open');
+    if(!open) return;
+    const sep = open.indexOf('-');
+    if(sep < 1) return;
+    const type = open.slice(0, sep);
+    const id = open.slice(sep + 1);
+    if(!['feed', 'preset', 'overlay'].includes(type) || !id) return;
+    sharedLinkResolved = true;
+    // Strip the query param so it doesn't reopen on refresh/back.
+    const cleanUrl = location.pathname + location.hash;
+    history.replaceState(null, '', cleanUrl);
+    // window.PECommunity.openDetail is attached by community-creator.js,
+    // which loads right after this file — by the time auth resolves
+    // (a network round trip) it's always ready, but retry briefly just
+    // in case of unusual load ordering.
+    let tries = 0;
+    (function attempt(){
+      if(window.PECommunity && typeof window.PECommunity.openDetail === 'function'){
+        window.PECommunity.openDetail(type, id);
+      }else if(tries++ < 20){
+        setTimeout(attempt, 100);
+      }
+    })();
+  }
+
   window.PECommunity = {
     PRESET_CATEGORIES, OVERLAY_CATEGORIES, SORTS, TAB_META,
     createDoc, updateDocById, deleteDocById, incrementCounter,
     toggleLike, toggleFavorite, ensureCommunityProfileFields,
     serverTS, increment,
-    refreshCurrentTab: ()=>loadPage(true)
+    refreshCurrentTab: ()=>loadPage(true),
+    buildShareLink, copyShareLink, resolveSharedLink
   };
 
   /* ------------------------------------------------------------------

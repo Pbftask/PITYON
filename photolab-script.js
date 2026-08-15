@@ -371,6 +371,7 @@ function handleAuthenticatedState(user){
   updateUserProfileUI();
   saveUserProfileToDb(user);
   loadUserProfileFromFirestore(user.uid);
+  if(window.PECommunity && window.PECommunity.resolveSharedLink) window.PECommunity.resolveSharedLink();
 }
 
 // Loads the user's username + uploaded profile photo URL from Firestore
