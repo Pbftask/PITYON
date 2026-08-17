@@ -142,6 +142,16 @@
     color:var(--ink);
   }
   .card .go svg{width:16px;height:16px;stroke:var(--ink);}
+  .adsense-slot{
+    width:100%;
+    max-width:890px;
+    min-height:90px;
+    margin:0 0 18px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
   footer{
     margin-top:10px;
     color:var(--ink-dim);
@@ -260,8 +270,9 @@
 <body>
 
   <div class="brand">
-    <div class="eyebrow">Satu pintu, dua studio</div>
-    <h1>Photo<span>Lab</span> &amp; Pity<span>Studio</span></h1>
+    <div class="eyebrow">Welcome</div>
+    <span>luminux.my.id</span>
+    <h1>Das<span>Board</span> &amp; Ho<span>Me</span></h1>
   </div>
 <!-- PAPAN IKLAN -->
 <div class="ad-slider" id="adSlider">
@@ -271,19 +282,63 @@
       <img src="foto-iklan-1.png" alt="Iklan 1">
     </a>
 
-    <a class="ad-item" href="photolab.html">
+    <a class="ad-item" href="https://pbftask.github.io/luminux.store/store">
       <img src="foto-iklan-2.png" alt="Iklan 2">
     </a>
 
-    <a class="ad-item" href="studio.html">
+    <a class="ad-item" href="https://pbftask.github.io/luminux.store/store">
       <img src="foto-iklan-3.png" alt="Iklan 3">
+    </a>
+    
+    <a class="ad-item" href="https://pbftask.github.io/luminux.store/store">
+      <img src="foto-iklan-4.png" alt="Iklan 4">
     </a>
 
   </div>
 
   <div class="ad-dots" id="adDots"></div>
 </div>
+
+<!-- ===== SLOT IKLAN ADSENSE ===== -->
+<!-- Ganti data-ad-slot="XXXXXXXXXX" dengan Ad Slot ID asli dari akun AdSense-mu -->
+<div class="adsense-slot">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-7405559855984003"
+       data-ad-slot="3565180761"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+</div>
+<script>
+  (adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+<!-- ===== END SLOT IKLAN ADSENSE ===== -->
+
   <div class="cards">
+
+    <!-- ===================================================
+         TEMPLATE TOMBOL / CARD BARU
+         Cara pakai:
+         1. Copy blok <a class="card ..."> ... </a> di bawah ini
+         2. Ganti "warna-kelas" jadi "photo" / "video", atau buat warna sendiri di CSS (lihat --photo-a/--photo-b di :root)
+         3. Ganti href, judul (h2), deskripsi (p), dan teks tombol (span.go)
+         4. Ganti isi svg icon sesuai selera (bisa pakai icon dari feathericons.com)
+         =================================================== -->
+    <!--
+    <a class="card photo" href="halaman-baru.html">
+      <div>
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
+        </div>
+        <h2>Judul Tombol Baru</h2>
+        <p>Deskripsi singkat tombol baru di sini.</p>
+      </div>
+      <span class="go">Buka Fitur Baru
+        <svg viewBox="0 0 24 24" stroke-width="2" fill="none"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+    -->
+
     <a class="card photo" href="photolab.html">
       <div>
         <div class="icon">
@@ -306,6 +361,20 @@
         <p>Editor video jedag-jedug. Buat project baru atau lanjutkan project lamamu.</p>
       </div>
       <span class="go">Buka Pity Studio
+        <svg viewBox="0 0 24 24" stroke-width="2" fill="none"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </span>
+    </a>
+
+    <!-- Contoh tombol baru (hapus/ubah sesuai kebutuhan) -->
+    <a class="card photo" href="spiralis.html">
+      <div>
+        <div class="icon">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+        </div>
+        <h2>Spiralis</h2>
+        <p>Buka halaman Spiralis.</p>
+      </div>
+      <span class="go">Buka Spiralis
         <svg viewBox="0 0 24 24" stroke-width="2" fill="none"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </span>
     </a>
@@ -394,7 +463,7 @@
 
       goToSlide(current);
 
-    }, 3000);
+    }, 5000);
 
   }
 
