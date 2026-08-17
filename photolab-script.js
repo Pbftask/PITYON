@@ -3494,7 +3494,7 @@ function renderExportTab(){
         <button class="chip ${q==='max'?'active':''}" data-q="max">Maximum</button>
       </div>
     </div>
-    ${isVideo?`<p style="font-size:12px;color:var(--text-dim);line-height:1.5;margin:0 0 10px;">Video diexport sebagai <b>WebM</b> pada resolusi <b>${tier.label}</b>, lengkap dengan overlay &amp; watermark.</p>`:''}
+    ${isVideo?`<p style="font-size:12px;color:var(--text-dim);line-height:1.5;margin:0 0 10px;">Video diexport sebagai <b>MP4</b> pada resolusi <b>${tier.label}</b>, lengkap dengan overlay &amp; watermark.</p>`:''}
     <button class="export-btn" id="btnExport">
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 4v11m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       Download Enhanced ${isVideo?'Video':'Photo'}
@@ -3534,7 +3534,7 @@ function buildFilename(){
   const ratioTag=S.settings.aspectRatio?`-${S.settings.aspectRatio.width}x${S.settings.aspectRatio.height}`:'';
   const tierTag=`-${getTier(S.settings.resTier).label}`;
   if(S.mediaType==='video'){
-    return `video-enhanced${tierTag}${ratioTag}.webm`;
+    return `video-enhanced${tierTag}${ratioTag}.mp4`;
   }
   const ext=S.exportFormat==='jpeg'?'jpg':S.exportFormat;
   return `photo-enhanced${tierTag}${ratioTag}.${ext}`;
@@ -3822,22 +3822,83 @@ $('exportCancelBtn').addEventListener('click',()=>{
    The source video plays through once at normal speed; every frame is
    drawn (with the same CSS-filter color pipeline + overlay hooks used in
    drawVideoFrame) onto an off-screen canvas sized to the chosen resolution
-   tier, and canvas.captureStream() is recorded via MediaRecorder. Audio is
+   tier, and canvas.captureStream() is recorded via MediaRecorder.  Audio is
    captured straight from the source video element and merged into the
-   recorded stream. Output format is WebM (VP9/Opus) since that's what
-   MediaRecorder can reliably produce fully client-side in the browser —
-   there is no server-side transcoding step in this app.
+   recorded stream.
+
+   Output is always delivered to the user as MP4:
+   - On browsers where MediaRecorder can produce MP4 natively (Safari/iOS),
+     we record straight to MP4 — no extra work needed.
+   - On browsers that only support WebM (Chrome, Firefox, Android, etc.),
+     we record WebM as before, then transcode that WebM to MP4 client-side
+     with ffmpeg.wasm before the file is handed to the user. There is still
+     no server-side transcoding step; everything happens in the browser.
    ========================================================================== */
 function pickVideoMimeType(){
-  const candidates=[
+  const mp4Candidates=[
+    'video/mp4;codecs=avc1,mp4a.40.2',
+    'video/mp4;codecs=h264,aac',
+    'video/mp4'
+  ];
+  for(const c of mp4Candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)){
+      return {mimeType:c, nativeMp4:true};
+    }
+  }
+  const webmCandidates=[
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
     'video/webm'
   ];
-  for(const c of candidates){
-    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+  for(const c of webmCandidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)){
+      return {mimeType:c, nativeMp4:false};
+    }
   }
-  return 'video/webm';
+  return {mimeType:'video/webm', nativeMp4:false};
+}
+
+// Lazy-loaded, cached ffmpeg.wasm instance — only spun up if the browser
+// couldn't record MP4 natively and we actually need to transcode a WebM.
+let _ffmpegInstance=null;
+async function getFfmpegInstance(){
+  if(_ffmpegInstance) return _ffmpegInstance;
+  if(!window.FFmpeg || !window.FFmpeg.createFFmpeg){
+    throw new Error('FFmpeg.wasm belum termuat.');
+  }
+  const {createFFmpeg}=window.FFmpeg;
+  const ffmpeg=createFFmpeg({
+    log:false,
+    corePath:'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
+  });
+  await ffmpeg.load();
+  _ffmpegInstance=ffmpeg;
+  return ffmpeg;
+}
+
+// Converts a WebM Blob to an MP4 Blob entirely client-side. onProgress gets
+// a 0-1 fraction while ffmpeg works.
+async function convertWebmBlobToMp4(webmBlob, onProgress){
+  const {fetchFile}=window.FFmpeg;
+  const ffmpeg=await getFfmpegInstance();
+  ffmpeg.setProgress(({ratio})=>{
+    if(typeof ratio==='number' && isFinite(ratio)) onProgress(Math.max(0,Math.min(1,ratio)));
+  });
+  const inName='input.webm', outName='output.mp4';
+  ffmpeg.FS('writeFile', inName, await fetchFile(webmBlob));
+  // -c:v libx264 re-encodes video to H.264, -c:a aac re-encodes audio to AAC
+  // (both required for broadly-compatible MP4 playback); +faststart makes
+  // the file start playing before it's fully downloaded.
+  await ffmpeg.run(
+    '-i', inName,
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:a', 'aac', '-b:a', '160k',
+    '-movflags', '+faststart',
+    outName
+  );
+  const data=ffmpeg.FS('readFile', outName);
+  try{ ffmpeg.FS('unlink', inName); ffmpeg.FS('unlink', outName); }catch(e){}
+  return new Blob([data.buffer], {type:'video/mp4'});
 }
 
 async function exportVideo(){
@@ -3889,7 +3950,7 @@ async function exportVideo(){
     }
   }catch(err){ console.warn('Audio capture not available:', err); }
 
-  const mimeType=pickVideoMimeType();
+  const {mimeType, nativeMp4}=pickVideoMimeType();
   const recorder=new MediaRecorder(canvasStream,{mimeType, videoBitsPerSecond:Math.min(24_000_000, Math.round(outW*outH*0.12))});
   const chunks=[];
   recorder.ondataavailable=(e)=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
@@ -3943,7 +4004,28 @@ async function exportVideo(){
     recorder.stop();
     await finished;
 
-    const blob=new Blob(chunks,{type:mimeType.split(';')[0]});
+    const recordedBlob=new Blob(chunks,{type:mimeType.split(';')[0]});
+
+    let blob;
+    if(nativeMp4){
+      // Browser already recorded MP4 directly — nothing else to do.
+      blob=recordedBlob;
+    }else{
+      // Browser could only record WebM — transcode to MP4 client-side.
+      updateExportProgress(97,'Mengonversi ke MP4...');
+      try{
+        blob=await convertWebmBlobToMp4(recordedBlob, (frac)=>{
+          updateExportProgress(97+frac*3, `Mengonversi ke MP4... ${Math.round(frac*100)}%`);
+        });
+      }catch(err){
+        console.error('MP4 conversion failed:', err);
+        exportOverlay.classList.remove('active');
+        toast('Gagal mengonversi video ke MP4.','error');
+        startVideoPreviewLoop();
+        return;
+      }
+    }
+
     if(usesPremium){
       const charge=await chargeCreditIfNeeded();
       if(!charge.ok){ exportOverlay.classList.remove('active'); startVideoPreviewLoop(); return; }
