@@ -535,6 +535,39 @@
   </div>
 </div>
 
+<!-- Shown once on page load: warns low-RAM devices this app may be heavy. -->
+<div class="modal-backdrop" id="ramWarningModal">
+  <div class="modal-card" style="text-align:center;">
+    <div class="modal-head" style="justify-content:center;"><h3>⚠️ Peringatan RAM Perangkat</h3></div>
+    <p style="font-size:13.5px;color:var(--text-dim);margin:0 0 10px;line-height:1.6;">
+      Aplikasi ini melakukan proses edit foto &amp; video langsung di HP kamu (bukan di server), sehingga cukup berat untuk RAM.
+    </p>
+    <p style="font-size:13.5px;color:var(--text-main);margin:0 0 18px;line-height:1.6;">
+      <b>HP dengan RAM 3GB ke bawah tidak disarankan</b> menggunakan aplikasi ini karena berisiko lag, macet, atau force close saat edit/export.
+    </p>
+    <p id="ramDetectedHint" style="font-size:12px;color:var(--text-dim);margin:0 0 18px;line-height:1.5;display:none;"></p>
+    <button class="btn-primary" id="btnRamWarningContinue" style="width:100%;justify-content:center;margin-top:0;">Saya Mengerti, Tetap Lanjutkan</button>
+  </div>
+</div>
+
+<!-- Shown right before export: lets the user pick a lighter export path if
+     their device has 3GB RAM or less, so low-RAM phones are less likely to crash. -->
+<div class="modal-backdrop" id="ramTierModal">
+  <div class="modal-card" style="text-align:center;">
+    <div class="modal-head" style="justify-content:center;"><h3>Pilih RAM HP Kamu</h3></div>
+    <p style="font-size:13px;color:var(--text-dim);margin:0 0 18px;line-height:1.6;">
+      Supaya export tidak membuat HP macet, pilih sesuai RAM perangkatmu. Jika ragu, cek di Pengaturan &gt; Tentang HP.
+    </p>
+    <button class="btn-ghost" id="btnRamTierLow" style="width:100%;text-align:left;margin-top:0;padding:14px 16px;">
+      <b>RAM 3GB ke bawah</b><br><span style="font-size:12px;color:var(--text-dim);font-weight:400;">Export lebih hemat memori &amp; lebih lambat, tapi lebih aman agar HP tidak macet.</span>
+    </button>
+    <button class="btn-primary" id="btnRamTierHigh" style="width:100%;justify-content:flex-start;text-align:left;margin-top:10px;padding:14px 16px;">
+      <b>RAM 3GB ke atas</b><br><span style="font-size:12px;font-weight:400;opacity:.85;">Export normal, kecepatan &amp; kualitas seperti biasa.</span>
+    </button>
+    <button class="btn-ghost" style="width:100%;text-align:center;margin-top:10px;" id="btnCloseRamTier">Batal</button>
+  </div>
+</div>
+
 <div id="toastHost"></div>
   
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>

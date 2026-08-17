@@ -25,7 +25,7 @@ const BUY_CREDIT_URL =
 const RESOLUTION_TIERS = [
   { key:'hd', label:'HD',  maxDim:1280, badge:'FREE',    badgeClass:'free' },
   { key:'2k', label:'2K',  maxDim:2560, badge:'FREE',    badgeClass:'free' },
-  { key:'4k', label:'4K',  maxDim:3840, badge:'3×/HARI', badgeClass:'limited', dailyLimit:3 },
+  { key:'4k', label:'4K',  maxDim:3840, badge:'5×/HARI', badgeClass:'limited', dailyLimit:5 },
   { key:'8k', label:'8K',  maxDim:7680, badge:'PRO',     badgeClass:'pro' }
 ];
 function getTier(key){ return RESOLUTION_TIERS.find(t=>t.key===key) || RESOLUTION_TIERS[0]; }
@@ -119,6 +119,7 @@ const S = {
   prefs:{ previewQuality:'balanced', autoOnLoad:false, hwAccel:true, useGpu:true, darkMode:true, haptic:false, defaultFormat:'jpeg', defaultQuality:'high', defaultUpscale:'2k' },
   renderPending:false, renderHiQPending:false,
   exportCancelled:false,
+  ramTier:null,           // 'low' | 'high' — picked via the RAM prompt right before each export
 
   // ---- Account / Premium credit state (all processing is on-device) ----
   uid:null,
@@ -751,6 +752,61 @@ $('btnBuyCreditFromModal').addEventListener('click',()=>{ openBuyCreditPage(); c
 $('btnCloseOutOfCredit').addEventListener('click', closeOutOfCreditModal);
 outOfCreditModal.addEventListener('click',(e)=>{ if(e.target===outOfCreditModal) closeOutOfCreditModal(); });
 
+/* ---- RAM warning modal — shown once every time the page/app is opened.
+   navigator.deviceMemory (Chrome/Android only, approximate, in GB) is used
+   just to show a hint; the warning itself is shown regardless since Safari/
+   iOS doesn't expose that API at all. ---- */
+const ramWarningModal=$('ramWarningModal');
+function openRamWarningModal(){
+  const hint=$('ramDetectedHint');
+  if(hint){
+    if(typeof navigator.deviceMemory==='number'){
+      const gb=navigator.deviceMemory;
+      hint.style.display='block';
+      hint.innerHTML = gb<=3
+        ? `Terdeteksi RAM perangkat ini sekitar <b>${gb}GB</b> — termasuk kategori yang tidak disarankan.`
+        : `Terdeteksi RAM perangkat ini sekitar <b>${gb}GB</b>.`;
+    }else{
+      hint.style.display='none';
+    }
+  }
+  ramWarningModal.classList.add('active');
+}
+function closeRamWarningModal(){ ramWarningModal.classList.remove('active'); }
+$('btnRamWarningContinue').addEventListener('click', closeRamWarningModal);
+// Shown on every page load — deliberately not remembered/skipped via storage.
+openRamWarningModal();
+
+/* ---- RAM tier modal — shown right before export starts, so low-RAM
+   devices can opt into a lighter (slower but safer) export path. The
+   choice is stored in S.ramTier ('low' | 'high') and read by the photo
+   and video export pipelines below. ---- */
+const ramTierModal=$('ramTierModal');
+function askRamTier(){
+  return new Promise((resolve)=>{
+    ramTierModal.classList.add('active');
+    function pick(tier){
+      ramTierModal.classList.remove('active');
+      cleanup();
+      resolve(tier);
+    }
+    function onLow(){ pick('low'); }
+    function onHigh(){ pick('high'); }
+    function onClose(){ pick(null); }
+    function onBackdrop(e){ if(e.target===ramTierModal) pick(null); }
+    function cleanup(){
+      $('btnRamTierLow').removeEventListener('click', onLow);
+      $('btnRamTierHigh').removeEventListener('click', onHigh);
+      $('btnCloseRamTier').removeEventListener('click', onClose);
+      ramTierModal.removeEventListener('click', onBackdrop);
+    }
+    $('btnRamTierLow').addEventListener('click', onLow);
+    $('btnRamTierHigh').addEventListener('click', onHigh);
+    $('btnCloseRamTier').addEventListener('click', onClose);
+    ramTierModal.addEventListener('click', onBackdrop);
+  });
+}
+
 /* ==========================================================================
    3d. APP-LEVEL NAVIGATION (Home / Project / Akun)
    ========================================================================== */
@@ -1341,12 +1397,12 @@ function handleFile(file){
 /* ---- VIDEO UPLOAD/PREVIEW ----
    HD video editing runs the same slider pipeline (brightness/contrast/
    saturation/temperature/hue) applied in real time via a cheap CSS canvas
-   filter (ctx.filter) while the hidden <video> element plays, redrawn onto
-   the very same canvasAfter used for photos — so pan/zoom/compare and all
-   overlay layers (text/mosaic/stickers/watermark) keep working unchanged.
-   Heavy per-pixel ops (sharpen/denoise/face-detail) are photo-only; they
-   are skipped for video since running them per-frame in real time isn't
-   feasible in-browser. */
+   filter (ctx.filter) while the hidden <video> element plays (with sound),
+   redrawn onto the very same canvasAfter used for photos — so pan/zoom/
+   compare and all overlay layers (text/mosaic/stickers/watermark) keep
+   working unchanged. Heavy per-pixel ops (sharpen/denoise/face-detail) are
+   too slow to run every animation frame in the live preview, so they're
+   only applied once, per-frame, during the actual export pass. */
 function handleVideoFile(file){
   stopVideoPreviewLoop();
   const url=URL.createObjectURL(file);
@@ -1398,7 +1454,7 @@ function loadVideo(video,file){
   fitToScreen();
   sizeCanvasesToPreview();
   video.currentTime=0;
-  video.muted=true; // display preview muted; audio is still captured on export
+  video.muted=false; // preview plays with sound now; export captures this same audio track separately
   videoPlayToggle.style.display='flex';
   drawVideoFrame();
   startVideoPreviewLoop();
@@ -2590,7 +2646,14 @@ function renderUpscaleTab(){
     let subLabel;
     if(tier.dailyLimit){
       const usage=getResUsage(tier.key);
-      subLabel=`${Math.max(0,tier.dailyLimit-usage.count)}× tersisa hari ini`;
+      const remaining=Math.max(0,tier.dailyLimit-usage.count);
+      if(remaining>0){
+        subLabel=`${remaining}× tersisa hari ini`;
+      }else if(hasProCredits()){
+        subLabel='Kuota habis — lanjut pakai 1 credit/export';
+      }else{
+        subLabel='Kuota habis hari ini';
+      }
     }else if(tier.badgeClass==='pro'){
       subLabel='1 credit / export';
     }else{
@@ -2624,7 +2687,7 @@ function renderUpscaleTab(){
       <div class="control-label"><b>Resolusi ${isVideo?'Video':'Foto'}</b></div>
       ${tierGrid}
     </div>
-    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> HD &amp; 2K gratis tanpa batas. 4K gratis 3× per hari. 8K khusus <b>PRO</b> — 1 credit terpakai saat export.</p>
+    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> HD &amp; 2K gratis tanpa batas. 4K gratis 5× per hari, setelah itu otomatis pakai 1 credit PRO/export selama credit masih ada. 8K khusus <b>PRO</b> — 1 credit terpakai saat export.</p>
     <div class="control-row">
       <div class="control-label"><b>Aspect Ratio</b></div>
       ${aspectGrid}
@@ -2639,8 +2702,8 @@ function renderUpscaleTab(){
       const tier=getTier(key);
       if(tier.dailyLimit){
         const usage=getResUsage(key);
-        if(usage.count>=tier.dailyLimit){
-          toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Coba lagi besok atau pakai 8K PRO.`,'error');
+        if(usage.count>=tier.dailyLimit && !hasProCredits()){
+          toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Gunakan credit PRO untuk lanjut, atau coba lagi besok.`,'error');
           return;
         }
       }
@@ -2654,7 +2717,12 @@ function renderUpscaleTab(){
         toast(`Resolusi ${tier.label} dipilih — fitur PRO, 1 credit terpakai saat export`);
       }else if(tier.dailyLimit){
         const usage=getResUsage(key);
-        toast(`Resolusi ${tier.label} dipilih — ${Math.max(0,tier.dailyLimit-usage.count)}× gratis tersisa hari ini`);
+        const remaining=Math.max(0,tier.dailyLimit-usage.count);
+        if(remaining>0){
+          toast(`Resolusi ${tier.label} dipilih — ${remaining}× gratis tersisa hari ini`);
+        }else{
+          toast(`Resolusi ${tier.label} dipilih — kuota gratis habis, export berikutnya pakai 1 credit PRO`);
+        }
       }else{
         toast(`Resolusi ${tier.label} dipilih — akan diterapkan saat export`);
       }
@@ -3154,12 +3222,7 @@ function renderFilterTab(){
 
 /* ---- FACE TAB (fully Premium) ---- */
 function renderFaceTab(){
-  if(S.mediaType==='video'){
-    sheetBody.innerHTML=`<p style="font-size:13px;color:var(--text-dim);line-height:1.6;padding:20px 4px;">
-      Face Detail adalah fitur khusus foto — tidak tersedia untuk video.
-    </p>`;
-    return;
-  }
+  const isVideo=S.mediaType==='video';
   sheetBody.innerHTML=`
     <div class="toggle-row">
       <div><b>Face Detail</b> ${premiumBadgeHtml()}<span>Penajaman &amp; noise reduction aman, diterapkan secara menyeluruh</span></div>
@@ -3168,6 +3231,7 @@ function renderFaceTab(){
     <p style="font-size:12px;color:var(--text-dim);line-height:1.6;margin-top:10px;">
       Fitur ini tidak menggunakan model AI/deteksi wajah — melainkan penyesuaian clarity ringan yang aman diterapkan pada keseluruhan gambar untuk membantu memperjelas detail kulit &amp; fitur wajah tanpa membuat foto terlihat kasar.
     </p>
+    ${isVideo?`<p style="font-size:12px;color:var(--text-dim);line-height:1.6;margin-top:10px;">Untuk video, efek ini diterapkan per-frame saat proses export — video dengan resolusi/durasi besar mungkin memakan waktu export sedikit lebih lama.</p>`:''}
     <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Face Detail adalah fitur <b>PRO</b> — 1 credit terpakai saat export.</p>`;
   $('faceToggle').addEventListener('click',()=>{
     S.settings.faceDetail=!S.settings.faceDetail;
@@ -3555,8 +3619,32 @@ function updateExportProgress(pct, statusText){
 const MAX_CANVAS_DIM=8000;      // safe cross-browser/mobile canvas dimension limit
 const MAX_CANVAS_PIXELS=40e6;   // safe total-pixel limit for getImageData/toBlob memory
 
+function sleep(ms){ return new Promise(res=>setTimeout(res,ms)); }
+
+// Export behavior differs depending on the RAM tier the user picked in the
+// pre-export prompt (see askRamTier()). "low" trades speed for a much
+// smaller peak-memory footprint, so 3GB-and-below phones are far less
+// likely to lag or force-close mid-export.
+function getRamCaps(){
+  if(S.ramTier==='low'){
+    return {
+      maxCanvasDim: 3000, maxCanvasPixels: 9e6,   // photo: cap final canvas size
+      maxVideoDim: 960,                            // video: cap long edge regardless of chosen tier
+      videoBitrateFactor: 0.05,                     // video: lower bitrate = smaller buffers
+      ffmpegPreset: 'ultrafast',                    // video: lighter transcode pass
+      stepDelay: 70                                  // extra breathing room between chunked steps
+    };
+  }
+  return {
+    maxCanvasDim: MAX_CANVAS_DIM, maxCanvasPixels: MAX_CANVAS_PIXELS,
+    maxVideoDim: null, videoBitrateFactor: 0.12, ffmpegPreset: 'veryfast', stepDelay: 30
+  };
+}
+
 function upscaleCanvasWithProgress(srcCanvas, factor, onProgress){
   if(factor<=1) return Promise.resolve(srcCanvas);
+
+  const caps=getRamCaps();
 
   // Compute the exact target size for the requested factor first (old code kept
   // doubling until it *passed* the factor, e.g. 5x silently became 8x and 10x
@@ -3566,13 +3654,14 @@ function upscaleCanvasWithProgress(srcCanvas, factor, onProgress){
   let targetH=Math.round(srcCanvas.height*factor);
 
   // Clamp to a safe size so export never crashes, while keeping the same
-  // upscale options/UI exactly as they are.
-  if(Math.max(targetW,targetH)>MAX_CANVAS_DIM){
-    const s=MAX_CANVAS_DIM/Math.max(targetW,targetH);
+  // upscale options/UI exactly as they are. On the "RAM 3GB ke bawah" path
+  // this clamp is tighter, trading max output resolution for stability.
+  if(Math.max(targetW,targetH)>caps.maxCanvasDim){
+    const s=caps.maxCanvasDim/Math.max(targetW,targetH);
     targetW=Math.round(targetW*s); targetH=Math.round(targetH*s);
   }
-  if(targetW*targetH>MAX_CANVAS_PIXELS){
-    const s=Math.sqrt(MAX_CANVAS_PIXELS/(targetW*targetH));
+  if(targetW*targetH>caps.maxCanvasPixels){
+    const s=Math.sqrt(caps.maxCanvasPixels/(targetW*targetH));
     targetW=Math.round(targetW*s); targetH=Math.round(targetH*s);
   }
 
@@ -3595,7 +3684,10 @@ function upscaleCanvasWithProgress(srcCanvas, factor, onProgress){
       const progress = 20 + (step/totalSteps)*30;
       updateExportProgress(progress, `Mengupscale gambar... (${step}/${totalSteps})`);
       if(isLast){ resolve(cur); return; }
-      setTimeout(doStep, 30);
+      // Low-RAM path waits a bit longer between steps so the previous
+      // intermediate canvas can actually get garbage-collected before the
+      // next one is allocated, instead of several overlapping in memory.
+      setTimeout(doStep, caps.stepDelay);
     }
     doStep();
   });
@@ -3635,6 +3727,7 @@ async function buildFinalCanvasWithProgress(onProgress){
 
   // 3. Apply enhancement pipeline
   updateExportProgress(60, 'Menerapkan enhancement...');
+  if(S.ramTier==='low') await sleep(getRamCaps().stepDelay); // let the upscale canvas settle/GC first
   const ctx=scaled.getContext('2d');
   let imgData=ctx.getImageData(0,0,scaled.width,scaled.height);
 
@@ -3683,7 +3776,12 @@ function isColorPremiumActive(){
 }
 function isPremiumActive(){
   const s=S.settings;
+  const tier=getTier(s.resTier);
   if(s.resTier==='8k') return true;
+  // 4K (or any future dailyLimit tier): free up to the daily quota, then
+  // automatically falls back to PRO credit so it can be used without limit
+  // as long as the user still has credits.
+  if(tier.dailyLimit && getResUsage(tier.key).count>=tier.dailyLimit) return true;
   if(s.sharpen>45) return true;      // Soft(15)/Natural(35)=free, Sharp(60)/Ultra Sharp(85)=premium
   if(s.denoise>0) return true;       // Off=free, Low/Medium/High=premium
   if(s.faceDetail) return true;      // Face Detail is fully premium
@@ -3691,6 +3789,9 @@ function isPremiumActive(){
   if(isColorPremiumActive()) return true;
   if(S.stickerLayers && S.stickerLayers.some(l=>l.premium)) return true; // PRO stickers
   return false;
+}
+function hasProCredits(){
+  return !!S.uid && S.credits!==null && S.credits>0;
 }
 
 /* ---- CREDIT CHARGING (client-side, on-device processing) ----
@@ -3731,16 +3832,24 @@ function checkResolutionQuota(){
   const tier=getTier(S.settings.resTier);
   if(tier.dailyLimit){
     const usage=getResUsage(tier.key);
-    if(usage.count>=tier.dailyLimit){
-      toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Coba lagi besok atau pakai 8K PRO.`,'error');
+    if(usage.count>=tier.dailyLimit && !hasProCredits()){
+      toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Gunakan credit PRO untuk pakai ${tier.label} tanpa batas selama credit masih ada, atau coba lagi besok.`,'error');
       return false;
     }
+    // Quota exceeded but has PRO credits — allowed through; isPremiumActive()
+    // already flags this export as premium so the normal credit pre-check +
+    // charge flow in exportImage/exportVideo takes care of the rest.
   }
   return true;
 }
 
 async function exportImage(){
   if(!S.originalCanvas){ toast(S.mediaType==='video'?'Pilih video terlebih dahulu.':'Pilih foto terlebih dahulu.'); return; }
+
+  const ramTier=await askRamTier();
+  if(!ramTier){ return; } // user cancelled the RAM tier prompt
+  S.ramTier=ramTier;
+
   if(S.mediaType==='video'){ return exportVideo(); }
 
   const usesPremium=isPremiumActive();
@@ -3765,7 +3874,7 @@ async function exportImage(){
   // the initial app loading screen, while keeping the % progress visible.
   exportOverlay.classList.add('active');
   startExportGlow();
-  updateExportProgress(0, 'Memulai proses export...');
+  updateExportProgress(0, S.ramTier==='low' ? 'Memulai proses export (mode hemat RAM)...' : 'Memulai proses export...');
 
   try{
     const finalCanvas = await buildFinalCanvasWithProgress();
@@ -3877,8 +3986,10 @@ async function getFfmpegInstance(){
 }
 
 // Converts a WebM Blob to an MP4 Blob entirely client-side. onProgress gets
-// a 0-1 fraction while ffmpeg works.
-async function convertWebmBlobToMp4(webmBlob, onProgress){
+// a 0-1 fraction while ffmpeg works. `preset` trades encode speed/memory for
+// quality ('ultrafast' uses noticeably less peak memory than 'veryfast',
+// used automatically on the "RAM 3GB ke bawah" export path).
+async function convertWebmBlobToMp4(webmBlob, onProgress, preset='veryfast'){
   const {fetchFile}=window.FFmpeg;
   const ffmpeg=await getFfmpegInstance();
   ffmpeg.setProgress(({ratio})=>{
@@ -3891,7 +4002,7 @@ async function convertWebmBlobToMp4(webmBlob, onProgress){
   // the file start playing before it's fully downloaded.
   await ffmpeg.run(
     '-i', inName,
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-c:v', 'libx264', '-preset', preset, '-crf', '20',
     '-c:a', 'aac', '-b:a', '160k',
     '-movflags', '+faststart',
     outName
@@ -3923,9 +4034,10 @@ async function exportVideo(){
   S.exportCancelled=false;
   exportOverlay.classList.add('active');
   startExportGlow();
-  updateExportProgress(0,'Mempersiapkan video...');
+  updateExportProgress(0, S.ramTier==='low' ? 'Mempersiapkan video (mode hemat RAM)...' : 'Mempersiapkan video...');
 
   // Target output size for the chosen resolution tier (long edge = tier.maxDim).
+  const caps=getRamCaps();
   const tier=getTier(S.settings.resTier);
   const srcW=S.origWidth, srcH=S.origHeight;
   const longEdge=Math.max(srcW,srcH);
@@ -3933,6 +4045,12 @@ async function exportVideo(){
   let outH=Math.round(srcH*(tier.maxDim/longEdge));
   if(Math.max(outW,outH)>MAX_CANVAS_DIM){
     const s=MAX_CANVAS_DIM/Math.max(outW,outH);
+    outW=Math.round(outW*s); outH=Math.round(outH*s);
+  }
+  // "RAM 3GB ke bawah" path: cap the long edge further, regardless of the
+  // resolution tier chosen, so per-frame canvas/encode buffers stay small.
+  if(caps.maxVideoDim && Math.max(outW,outH)>caps.maxVideoDim){
+    const s=caps.maxVideoDim/Math.max(outW,outH);
     outW=Math.round(outW*s); outH=Math.round(outH*s);
   }
 
@@ -3951,7 +4069,7 @@ async function exportVideo(){
   }catch(err){ console.warn('Audio capture not available:', err); }
 
   const {mimeType, nativeMp4}=pickVideoMimeType();
-  const recorder=new MediaRecorder(canvasStream,{mimeType, videoBitsPerSecond:Math.min(24_000_000, Math.round(outW*outH*0.12))});
+  const recorder=new MediaRecorder(canvasStream,{mimeType, videoBitsPerSecond:Math.min(24_000_000, Math.round(outW*outH*caps.videoBitrateFactor))});
   const chunks=[];
   recorder.ondataavailable=(e)=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
 
@@ -3968,6 +4086,14 @@ async function exportVideo(){
     outCtx.drawImage(sourceVideo,0,0,outW,outH);
     outCtx.filter='none';
     outCtx.restore();
+    // Face Detail (clarity/unsharp) — applied per-frame at export time only,
+    // same amount used for photos (18). Skipped in the live preview since a
+    // full getImageData/putImageData pass every frame would be too slow there.
+    if(S.settings.faceDetail){
+      const frameData=outCtx.getImageData(0,0,outW,outH);
+      frameData.data.set(px_unsharpMask(frameData.data,outW,outH,18));
+      outCtx.putImageData(frameData,0,0);
+    }
     // Bake overlay/watermark layers into the exported frame too.
     runOverlayHooks(outCtx, outW, outH, true);
     const pct=Math.min(96, 5 + (sourceVideo.currentTime/sourceVideo.duration)*90);
@@ -3980,6 +4106,10 @@ async function exportVideo(){
   try{
     sourceVideo.currentTime=0;
     await new Promise(res=>{ sourceVideo.onseeked=res; });
+    // Mute the on-screen element itself during export so the user doesn't
+    // hear it play out loud through the speaker — the audio track is still
+    // captured into the recording via sourceVideo.captureStream() above.
+    sourceVideo.muted=true;
     recorder.start(250);
     await sourceVideo.play();
     rafId=requestAnimationFrame(renderFrame);
@@ -3993,6 +4123,7 @@ async function exportVideo(){
     if(S.exportCancelled){
       cancelAnimationFrame(rafId);
       recorder.stop();
+      sourceVideo.muted=false;
       exportOverlay.classList.remove('active');
       toast('Export dibatalkan.');
       startVideoPreviewLoop();
@@ -4002,6 +4133,7 @@ async function exportVideo(){
     cancelAnimationFrame(rafId);
     updateExportProgress(97,'Menyiapkan file...');
     recorder.stop();
+    sourceVideo.muted=false;
     await finished;
 
     const recordedBlob=new Blob(chunks,{type:mimeType.split(';')[0]});
@@ -4016,7 +4148,7 @@ async function exportVideo(){
       try{
         blob=await convertWebmBlobToMp4(recordedBlob, (frac)=>{
           updateExportProgress(97+frac*3, `Mengonversi ke MP4... ${Math.round(frac*100)}%`);
-        });
+        }, caps.ffmpegPreset);
       }catch(err){
         console.error('MP4 conversion failed:', err);
         exportOverlay.classList.remove('active');
@@ -4041,6 +4173,7 @@ async function exportVideo(){
     toast(usesPremium?`Video PRO (${tier.label}) berhasil diunduh (1 credit terpakai)`:`Video ${tier.label} berhasil diunduh`,'success');
   }catch(err){
     console.error(err);
+    sourceVideo.muted=false;
     exportOverlay.classList.remove('active');
     toast('Export video gagal. Coba resolusi lebih rendah.','error');
   }finally{
