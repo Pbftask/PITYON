@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="photolab-style.css">
 <link rel="stylesheet" href="community.css">
+<link rel="stylesheet" href="compress-convert.css">
 </head>
 <body>
 <!-- ================= LOGIN GATE (Firebase Email/Password Authentication) ================= -->
@@ -78,6 +79,9 @@
     <div class="topbar-actions">
       <button class="credit-pill" id="btnCreditCenter" title="Credit Center" aria-label="Credit Center">
         <span class="lightning"><i class="fa-solid fa-bolt"></i></span><span id="creditCountText">–</span>
+      </button>
+      <button class="icon-btn" id="btnCompressConvert" title="Compress &amp; Convert" aria-label="Compress &amp; Convert">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v10m0 0-3.5-3.5M12 13l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 20.5h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
       <button class="icon-btn" id="btnUndo" title="Undo" aria-label="Undo">
         <svg viewBox="0 0 24 24" fill="none"><path d="M9 7 4 12l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12h10a6 6 0 0 1 0 12h-1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -579,6 +583,7 @@
      converts the recorded WebM to MP4 client-side before download. -->
 <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <script src="photolab-script.js"></script>
+<script src="compress-convert.js"></script>
 <script src="community.js"></script>
 <script src="community-creator.js"></script>
 <script src="community-watermark.js"></script>
