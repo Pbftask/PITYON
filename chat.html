@@ -167,6 +167,11 @@
   }
   .verify-toggle.on{ background:#3b9df8; color:#fff; border-color:#3b9df8; }
   .verify-toggle:active{ transform:scale(.94); }
+  .delete-guest-btn{
+    margin-left:.4rem; flex-shrink:0; border:1px solid var(--danger); background:transparent;
+    color:var(--danger); font-size:.68rem; font-weight:700; padding:.3rem .55rem; border-radius:9px; cursor:pointer;
+  }
+  .delete-guest-btn:active{ transform:scale(.94); background:rgba(255,80,80,.12); }
 
   /* ---------- CHAT VIEW ---------- */
   #view-chat{ min-height:0; }
@@ -919,7 +924,7 @@ const BOT_TYPING_MS_PER_CHAR = 18;    // simulated typing speed
 
 // Auto-sent when the user asks for the QR payment code (e.g. types "QR" or "QR:").
 const BOT_QR_IMAGE_URL = 'https://i.ibb.co.com/C5s4Ym0j/qr-ID1025433562457-28-10-25-176164091-1761640925689.jpg';
-const BOT_QR_CAPTION = 'Ini QR pembayarannya, silakan discan ya 🙏\nKalau sudah transfer, kirim bukti + UID akun PhotoLab kamu ya, nanti Admin upgrade langsung dari server.';
+const BOT_QR_CAPTION = 'Ini QR pembayarannya, silakan discan ya 🙏\nKalau sudah transfer, kirim bukti + UID akun PhotoLab kamu ya, nanti Admin upgrade langsung dari admin.html.';
 
 function isQrRequest(userText){
   const t = (userText||'').trim().toLowerCase();
@@ -947,8 +952,8 @@ function buildPlansText(){
   ];
   const anyPrice = w || m || y;
   const tail = anyPrice
-    ? 'Kalau sudah transfer, kirim bukti + UID akun PhotoLab kamu ya, nanti Admin upgrade langsung dari server.'
-    : 'Harga & cara bayar akan Admin infokan di sini. Kalau sudah transfer, kirim bukti + UID akun PhotoLab kamu ya, nanti Admin upgrade langsung dari server.';
+    ? 'Kalau sudah transfer, kirim bukti + UID akun PhotoLab kamu ya, nanti Admin upgrade langsung dari admin.html.'
+    : 'Harga & cara bayar akan Admin infokan di sini. Kalau sudah transfer, kirim bukti + UID akun PhotoLab kamu ya, nanti Admin upgrade langsung dari admin.html.';
   return `Paket PhotoLab PRO:\n${lines.join('\n')}\n\n${tail}`;
 }
 
@@ -972,7 +977,7 @@ function botReplyFor(userText){
   }
   if(t.includes('harga') || t.includes('bayar') || t.includes('price')) return plans;
   if(t.includes('uid')) return 'UID PhotoLab kamu bisa dilihat di app PhotoLab: buka menu Akun → bagian "UID Kamu". Salin lalu kirim ke sini kalau sudah bayar.';
-  if(t.includes('sudah bayar') || t.includes('sudah transfer') || t.includes('bukti')) return 'Siap, ditunggu bukti transfer + UID PhotoLab kamu. Setelah dicek, akun langsung diupgrade ke PRO lewat server.';
+  if(t.includes('sudah bayar') || t.includes('sudah transfer') || t.includes('bukti')) return 'Siap, ditunggu bukti transfer + UID PhotoLab kamu. Setelah dicek, akun langsung diupgrade ke PRO lewat admin.html.';
   return plans;
 }
 
@@ -1579,6 +1584,12 @@ function renderContacts(){
       toggleVerified(btn.getAttribute('data-toggle-uid'), btn.getAttribute('data-current') === '1');
     };
   });
+  listEl.querySelectorAll('[data-delete-guest-uid]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      deleteGuestAccount(btn.getAttribute('data-delete-guest-uid'), btn.getAttribute('data-delete-guest-name'));
+    };
+  });
 }
 
 function contactRow(u){
@@ -1590,6 +1601,9 @@ function contactRow(u){
   const verifyBtn = (isAdmin && adminMode && !u.isGuest && !u.banned)
     ? `<button class="verify-toggle ${u.verified ? 'on' : ''}" data-toggle-uid="${u.uid}" data-current="${u.verified ? '1' : ''}">${u.verified ? '✓ Verified' : 'Verifikasi'}</button>`
     : '';
+  const deleteGuestBtn = (isAdmin && adminMode && u.isGuest)
+    ? `<button class="delete-guest-btn" data-delete-guest-uid="${u.uid}" data-delete-guest-name="${escapeHtml(u.username)}" title="Hapus akun guest ini">🗑 Hapus</button>`
+    : '';
   const guestTag = u.isGuest ? ' <span style="font-size:.6rem;color:var(--muted);background:var(--card-2);padding:.1rem .4rem;border-radius:4px">guest</span>' : '';
   const bannedTag = u.banned ? ' <span class="banned-badge">Banned</span>' : '';
   const bannedClass = u.banned ? 'banned' : '';
@@ -1600,7 +1614,7 @@ function contactRow(u){
       <div class="row1"><b>${escapeHtml(u.username)}</b>${guestTag}${bannedTag}${verifiedBadge(u.verified)}</div>
       <div class="small ${hasUnread ? 'unread-preview' : ''}">${bannedTag ? 'Akun diblokir' : preview}</div>
     </div>
-    ${verifyBtn}${badge}
+    ${verifyBtn}${deleteGuestBtn}${badge}
   </div>`;
 }
 
@@ -2045,6 +2059,42 @@ async function toggleVerified(uid, current){
   }catch(e){
     console.error('Gagal ubah status verifikasi:', e);
     toast('Gagal ubah verifikasi (cek Database Rules).');
+  }
+}
+
+async function deleteGuestAccount(uid, username){
+  if(!isAdmin) return;
+  if(!confirm(`Hapus akun guest "${username}" secara permanen? Semua chat & pesannya juga akan terhapus. Tindakan ini tidak bisa dibatalkan.`)) return;
+
+  try{
+    // 1) Hapus profil & akun guest itu sendiri
+    await remove(ref(db, `users/${uid}`)).catch(()=>{});
+    await remove(ref(db, `guestAccounts/${sanitizeUsernameKey(username)}`)).catch(()=>{});
+
+    // 2) Hapus semua isi chat yang melibatkan uid ini
+    const chatsSnap = await get(ref(db, 'chats')).catch(()=>null);
+    if(chatsSnap && chatsSnap.exists()){
+      const chatIds = Object.keys(chatsSnap.val());
+      const targets = chatIds.filter(cid => cid.split('__').includes(uid));
+      await Promise.all(targets.map(cid => remove(ref(db, `chats/${cid}`)).catch(()=>{})));
+    }
+
+    // 3) Hapus inbox milik akun ini + referensinya di inbox pengguna lain
+    await remove(ref(db, `inbox/${uid}`)).catch(()=>{});
+    const otherUids = Object.keys(usersCache).filter(u => u !== uid);
+    await Promise.all(otherUids.map(otherUid => remove(ref(db, `inbox/${otherUid}/${uid}`)).catch(()=>{})));
+
+    // 4) Kalau admin sedang membuka chat dengan akun ini, kembali ke daftar kontak
+    if(PEER && PEER.uid === uid){
+      if(unsubMsgs){ unsubMsgs(); unsubMsgs = null; }
+      PEER = null;
+      showView('#view-list');
+    }
+
+    toast(`Akun guest "${username}" berhasil dihapus.`);
+  }catch(e){
+    console.error('Gagal hapus akun guest:', e);
+    toast('Gagal menghapus akun guest (cek Database Rules).');
   }
 }
 
