@@ -2,7 +2,7 @@
 "use strict";
 
 /* ==========================================================================
-   0. CONFIG (on-device only — no cloud AI API. Buy Credit page + Firebase)
+   0. CONFIG (on-device only — no cloud AI API. Subscribe page + Firebase)
    ========================================================================== */
 const CONFIG = {
   FREE_DAILY_LIMIT: 20,
@@ -12,8 +12,13 @@ const CONFIG = {
   // uploaded profile photo — no other images are ever sent anywhere.
   IMGBB_API_KEY: "4b5b5ba36295e875f1c44a632408c8c7"
 };
-const BUY_CREDIT_URL =
+const SUBSCRIBE_URL =
   "chat.html?uid=BQy28ApNQPYPTRLQNKOgx5VmX9z1";
+const SUBSCRIPTION_PLANS = [
+  { key:'weekly',  label:'Mingguan', days:7 },
+  { key:'monthly', label:'Bulanan',  days:30 },
+  { key:'yearly',  label:'Tahunan',  days:365 }
+];
 
 /* ==========================================================================
    0b. RESOLUTION TIERS (replaces the old 1x-5x upscale factor system).
@@ -68,12 +73,12 @@ function syncScaleFromTier(){
 }
 
 // Firebase configuration — used for Authentication and for reading/writing
-// the user's own credit balance. All photo processing (Free AND Premium)
+// the user's own subscription status. All photo processing (Free AND Premium)
 // runs fully on-device in the browser; there is no cloud AI backend. When a
-// Premium (credit-costing) feature is used, the credit is decremented via a
-// Firebase transaction that only allows a self-write of exactly "-1" (see
-// chargeCreditIfNeeded()) — this must be matched by equivalent Realtime
-// Database security rules server-side, or the deduction will be rejected.
+// Premium feature is used, access is gated on premiumUntil (a timestamp)
+// — only the admin panel / admin.html can write that field (see
+// requirePremiumAccess()); this must be matched by equivalent Realtime
+// Database security rules server-side, or the write will be rejected.
 const firebaseConfig = {
   apiKey: "AIzaSyAVALbkISki4F7kp0nWE_Eoa3qkfebiw7w",
   authDomain: "vidly-23088.firebaseapp.com",
@@ -121,12 +126,11 @@ const S = {
   exportCancelled:false,
   ramTier:null,           // 'low' | 'high' — picked via the RAM prompt right before each export
 
-  // ---- Account / Premium credit state (all processing is on-device) ----
+  // ---- Account / Premium subscription state (all processing is on-device) ----
   uid:null,
-  credits:null,                // null = not loaded yet
+  premiumUntil:null,           // null = not loaded yet; timestamp (ms) subscription expires. 0/past = not subscribed
   isAdmin:false,
   userProfile:null,            // { name, username, email, photo } once signed in
-  chargingCredit:false,
 
   // ---- Text & Mosaic edit layers (baked in at render/export time) ----
   textLayers:[],    // {id, text, x, y, size, color, bold, stroke, opacity, order}
@@ -238,13 +242,13 @@ function refreshFreeUsageUI(){
 }
 
 /* ==========================================================================
-   3c. FIREBASE — EMAIL/PASSWORD AUTHENTICATION + CREDIT BALANCE (PREMIUM)
+   3c. FIREBASE — EMAIL/PASSWORD AUTHENTICATION + SUBSCRIPTION STATUS (PREMIUM)
    The whole app is gated behind Firebase Authentication (email/password).
-   Frontend only READS the credit balance. It never decrements
-   it — the Cloudflare Worker validates and reserves/refunds credits
-   server-side.
+   Frontend only READS the subscription expiry timestamp
+   (users/$uid/premiumUntil). It never writes to it — only the admin panel
+   (with an admin UID) is allowed to write that field; see Firebase Rules.
    ========================================================================== */
-let firebaseAuthRef=null, firebaseDbRef=null, firestoreDbRef=null, creditsWatchRef=null;
+let firebaseAuthRef=null, firebaseDbRef=null, firestoreDbRef=null, premiumWatchRef=null;
 let authBusy=false;
 let resendCooldownTimer=null;
 
@@ -326,7 +330,7 @@ function initFirebase(){
     firebaseAuthRef = firebase.auth(app);
     firebaseDbRef = firebase.database(app);
     // Firestore stores the user's profile (username + uploaded photo URL),
-    // separate from the Realtime Database which only holds credits.
+    // separate from the Realtime Database which only holds subscription status.
     try{
       firestoreDbRef = (typeof firebase.firestore==='function') ? firebase.firestore(app) : null;
       subscribeStickers();
@@ -351,10 +355,10 @@ function initFirebase(){
 
 // ---- STATE 1: NOT_LOGGED_IN ----
 function handleLoggedOutState(){
-  S.uid=null; S.credits=null; S.userProfile=null; S.isAdmin=false;
-  if(creditsWatchRef){ try{ creditsWatchRef.off(); }catch(e){} creditsWatchRef=null; }
+  S.uid=null; S.premiumUntil=null; S.userProfile=null; S.isAdmin=false;
+  if(premiumWatchRef){ try{ premiumWatchRef.off(); }catch(e){} premiumWatchRef=null; }
   stopResendCooldown();
-  updateCreditsUI();
+  updateSubscriptionUI();
   updateUserProfileUI();
   showLoginGate();
   showAuthView('viewLogin');
@@ -368,7 +372,7 @@ function handleAuthenticatedState(user){
   S.isAdmin = ADMIN_EMAILS.includes((user.email||'').toLowerCase());
   stopResendCooldown();
   hideLoginGate();
-  subscribeCredits(user.uid);
+  subscribePremiumStatus(user.uid);
   updateUserProfileUI();
   saveUserProfileToDb(user);
   loadUserProfileFromFirestore(user.uid);
@@ -507,7 +511,7 @@ if(linkForgotToLogin) linkForgotToLogin.addEventListener('click', ()=>showAuthVi
 /* ---- LOGOUT ---- */
 async function signOutUser(){
   try{
-    if(creditsWatchRef){ try{ creditsWatchRef.off(); }catch(e){} creditsWatchRef=null; }
+    if(premiumWatchRef){ try{ premiumWatchRef.off(); }catch(e){} premiumWatchRef=null; }
     if(firebaseAuthRef) await firebaseAuthRef.signOut();
     closeCreditCenter();
     toast('Berhasil logout.','success');
@@ -691,18 +695,18 @@ if(usernameInput) usernameInput.addEventListener('keydown',(e)=>{
   else if(e.key==='Escape'){ closeUsernameEdit(); }
 });
 
-function subscribeCredits(uid){
+function subscribePremiumStatus(uid){
   try{
-    if(creditsWatchRef) creditsWatchRef.off();
-    creditsWatchRef=firebaseDbRef.ref('users/'+uid+'/credits');
-    creditsWatchRef.on('value',(snap)=>{
-      S.credits = snap.exists() ? (Number(snap.val())||0) : 0;
-      updateCreditsUI();
+    if(premiumWatchRef) premiumWatchRef.off();
+    premiumWatchRef=firebaseDbRef.ref('users/'+uid+'/premiumUntil');
+    premiumWatchRef.on('value',(snap)=>{
+      S.premiumUntil = snap.exists() ? (Number(snap.val())||0) : 0;
+      updateSubscriptionUI();
     },(err)=>{
-      console.error('Credits listener error', err);
-      // Surface this instead of leaving the credit pill stuck on "–" forever
-      // with no explanation — a permission error here means Firebase Rules
-      // are blocking this user from reading their own credits.
+      console.error('Premium status listener error', err);
+      // Surface this instead of leaving the pill stuck on "–" forever with
+      // no explanation — a permission error here means Firebase Rules are
+      // blocking this user from reading their own subscription status.
       const pill=$('creditCountText'); if(pill) pill.textContent='!';
       const hero=$('creditHeroNum'); if(hero) hero.textContent='!';
       const heroAcc=$('creditHeroNumAcc'); if(heroAcc) heroAcc.textContent='!';
@@ -712,12 +716,27 @@ function subscribeCredits(uid){
   }
 }
 
-function updateCreditsUI(){
-  const text = S.credits===null ? '–' : String(S.credits);
+function isSubscriptionActive(){
+  return !!S.uid && typeof S.premiumUntil==='number' && S.premiumUntil>Date.now();
+}
+
+function formatSubDate(ts){
+  try{
+    return new Date(ts).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
+  }catch(e){ return '–'; }
+}
+
+function updateSubscriptionUI(){
+  let text;
+  if(S.premiumUntil===null) text='–';
+  else if(isSubscriptionActive()) text='PRO';
+  else text='FREE';
   const pill=$('creditCountText'); if(pill) pill.textContent=text;
   const hero=$('creditHeroNum'); if(hero) hero.textContent=text;
   const heroAcc=$('creditHeroNumAcc'); if(heroAcc) heroAcc.textContent=text;
-  const shLeft=$('shCreditsLeft'); if(shLeft) shLeft.textContent = S.credits===null ? '' : `(${S.credits} left)`;
+  const subLine = isSubscriptionActive() ? `Aktif sampai ${formatSubDate(S.premiumUntil)}`
+    : (S.premiumUntil===null ? '' : 'Belum berlangganan');
+  const shLeft=$('shCreditsLeft'); if(shLeft) shLeft.textContent = subLine ? `(${subLine})` : '';
 }
 
 async function getIdTokenSafe(){
@@ -729,26 +748,26 @@ async function getIdTokenSafe(){
   return null;
 }
 
-function openBuyCreditPage(){
-  window.open(BUY_CREDIT_URL, '_blank', 'noopener');
+function openSubscribePage(){
+  window.open(SUBSCRIBE_URL, '_blank', 'noopener');
 }
 
-/* ---- Credit Center modal ---- */
+/* ---- Credit Center modal (now: Subscription / Premium Center) ---- */
 const creditCenterModal=$('creditCenterModal');
-function openCreditCenter(){ creditCenterModal.classList.add('active'); refreshFreeUsageUI(); updateCreditsUI(); updateUserProfileUI(); }
+function openCreditCenter(){ creditCenterModal.classList.add('active'); refreshFreeUsageUI(); updateSubscriptionUI(); updateUserProfileUI(); }
 function closeCreditCenter(){ creditCenterModal.classList.remove('active'); }
 $('btnCreditCenter').addEventListener('click', openCreditCenter);
 $('btnCloseCreditCenter').addEventListener('click', closeCreditCenter);
 $('btnCloseCreditCenter2').addEventListener('click', closeCreditCenter);
 creditCenterModal.addEventListener('click',(e)=>{ if(e.target===creditCenterModal) closeCreditCenter(); });
-$('btnBuyCredit').addEventListener('click', openBuyCreditPage);
-document.querySelectorAll('.credit-pkg').forEach(btn=>btn.addEventListener('click', openBuyCreditPage));
+$('btnBuyCredit').addEventListener('click', openSubscribePage);
+document.querySelectorAll('.credit-pkg').forEach(btn=>btn.addEventListener('click', openSubscribePage));
 
-/* ---- Out of credit modal ---- */
+/* ---- Out of credit modal (now: subscription required/expired modal) ---- */
 const outOfCreditModal=$('outOfCreditModal');
 function openOutOfCreditModal(){ outOfCreditModal.classList.add('active'); }
 function closeOutOfCreditModal(){ outOfCreditModal.classList.remove('active'); }
-$('btnBuyCreditFromModal').addEventListener('click',()=>{ openBuyCreditPage(); closeOutOfCreditModal(); });
+$('btnBuyCreditFromModal').addEventListener('click',()=>{ openSubscribePage(); closeOutOfCreditModal(); });
 $('btnCloseOutOfCredit').addEventListener('click', closeOutOfCreditModal);
 outOfCreditModal.addEventListener('click',(e)=>{ if(e.target===outOfCreditModal) closeOutOfCreditModal(); });
 
@@ -824,7 +843,7 @@ function goToPage(name){
     });
   }
   if(name==='project') renderProjectPage();
-  if(name==='account'){ updateUserProfileUI(); updateCreditsUI(); refreshFreeUsageUI(); }
+  if(name==='account'){ updateUserProfileUI(); updateSubscriptionUI(); refreshFreeUsageUI(); }
   // Lets separately-loaded modules (e.g. community.js) react to page changes
   // without this file needing to know anything about them.
   if(typeof window.onAppPageChange==='function'){
@@ -837,11 +856,11 @@ if(appNav){
   });
 }
 
-/* ---- Account page: reuse the same actions as Credit Center ---- */
+/* ---- Account page: reuse the same actions as Subscription/Premium Center ---- */
 const btnSignOutAccount=$('btnSignOutAccount');
 if(btnSignOutAccount) btnSignOutAccount.addEventListener('click', signOutUser);
 const btnBuyCreditAccount=$('btnBuyCreditAccount');
-if(btnBuyCreditAccount) btnBuyCreditAccount.addEventListener('click', openBuyCreditPage);
+if(btnBuyCreditAccount) btnBuyCreditAccount.addEventListener("click", openSubscribePage);
 const btnOpenSettingsAccount=$('btnOpenSettingsAccount');
 if(btnOpenSettingsAccount) btnOpenSettingsAccount.addEventListener('click', ()=>openSettings());
 
@@ -867,21 +886,24 @@ if(btnCopyUid) btnCopyUid.addEventListener('click', async ()=>{
 });
 
 /* ==========================================================================
-   3f. ADMIN PANEL — add credit to any user by UID (visible only when the
-   logged-in email is in ADMIN_EMAILS). The email check above only controls
-   what the UI *shows*; the actual write is only safe if Firebase Realtime
-   Database security rules also restrict writes to /users/$uid/credits to
-   trusted admin UID(s) server-side. Without that rule change this button
-   will simply fail with a permission error for non-admin accounts.
+   3f. ADMIN PANEL — upgrade any user to PRO (subscription) by UID (visible
+   only when the logged-in email is in ADMIN_EMAILS). The same task is also
+   available standalone in admin.html (same Firebase project) for admins who
+   don't want to open the full editor just to manage subscriptions.
+   The email check above only controls what the UI *shows*; the actual
+   write is only safe if Firebase Realtime Database security rules also
+   restrict writes to /users/$uid/premiumUntil to trusted admin UID(s)
+   server-side. Without that rule change this button will simply fail with
+   a permission error for non-admin accounts.
    ========================================================================== */
 let adminFoundUid=null;
 const adminTargetUidInput=$('adminTargetUid');
-const adminCreditAmountInput=$('adminCreditAmount');
+const adminCreditAmountInput=$('adminCreditAmount'); // now: duration <select> (7/30/365 days)
 const btnAdminFindUser=$('btnAdminFindUser');
 const btnAdminAddCredit=$('btnAdminAddCredit');
 const adminUserFound=$('adminUserFound');
 const adminFoundEmail=$('adminFoundEmail');
-const adminFoundCredits=$('adminFoundCredits');
+const adminFoundCredits=$('adminFoundCredits'); // now shows subscription status
 const adminFindStatus=$('adminFindStatus');
 const adminAddStatus=$('adminAddStatus');
 
@@ -899,6 +921,10 @@ function resetAdminFoundUser(){
   adminFoundUid=null;
   if(adminUserFound) adminUserFound.style.display='none';
   if(btnAdminAddCredit) btnAdminAddCredit.disabled=true;
+}
+function describeSub(premiumUntil){
+  const until=Number(premiumUntil)||0;
+  return until>Date.now() ? `PRO — aktif sampai ${formatSubDate(until)}` : 'FREE (tidak berlangganan)';
 }
 
 if(adminTargetUidInput) adminTargetUidInput.addEventListener('input', ()=>{
@@ -923,7 +949,7 @@ if(btnAdminFindUser) btnAdminFindUser.addEventListener('click', async ()=>{
     const data=snap.val()||{};
     adminFoundUid=uid;
     if(adminFoundEmail) adminFoundEmail.textContent=data.email||'–';
-    if(adminFoundCredits) adminFoundCredits.textContent=String(Number(data.credits)||0);
+    if(adminFoundCredits) adminFoundCredits.textContent=describeSub(data.premiumUntil);
     if(adminUserFound) adminUserFound.style.display='block';
     setAdminFindStatus('User ditemukan.','success');
     if(btnAdminAddCredit) btnAdminAddCredit.disabled=false;
@@ -937,35 +963,37 @@ if(btnAdminFindUser) btnAdminFindUser.addEventListener('click', async ()=>{
 
 if(btnAdminAddCredit) btnAdminAddCredit.addEventListener('click', async ()=>{
   if(!adminFoundUid){ setAdminAddStatus('Cari user terlebih dahulu.','error'); return; }
-  const amount=Math.floor(Number(adminCreditAmountInput.value));
-  if(!amount || amount<=0){ setAdminAddStatus('Masukkan jumlah credit yang valid (angka positif).','error'); return; }
+  const days=Math.floor(Number(adminCreditAmountInput.value));
+  if(!days || days<=0){ setAdminAddStatus('Pilih paket langganan terlebih dahulu.','error'); return; }
   if(!firebaseDbRef){ setAdminAddStatus('Database belum siap. Coba lagi sebentar.','error'); return; }
-  setBtnLoading(btnAdminAddCredit, true, 'Tambah Credit');
-  setAdminAddStatus('Menambahkan credit…');
+  setBtnLoading(btnAdminAddCredit, true, 'Upgrade Premium');
+  setAdminAddStatus('Mengupgrade akun ke PRO…');
   try{
-    // Use a transaction instead of ServerValue.increment: it's supported by
-    // every version of the compat SDK, works even if the "credits" field
-    // doesn't exist yet, and gives us the final committed value directly —
-    // no separate read-back needed, so we can tell for certain whether the
-    // write actually landed on the server.
-    const result=await firebaseDbRef.ref('users/'+adminFoundUid+'/credits')
-      .transaction(current => (Number(current)||0) + amount);
+    // Use a transaction instead of a plain set(): it reads the current
+    // premiumUntil first so an already-active subscription gets EXTENDED
+    // from its current expiry (not overwritten from "now"), while an
+    // expired/never-subscribed account starts fresh from now.
+    const addMs=days*24*60*60*1000;
+    const result=await firebaseDbRef.ref('users/'+adminFoundUid+'/premiumUntil')
+      .transaction(current=>{
+        const base=(Number(current)||0)>Date.now() ? Number(current) : Date.now();
+        return base+addMs;
+      });
 
     if(!result.committed){
       setAdminAddStatus('Perubahan tidak tersimpan di server (transaksi dibatalkan). Coba lagi.','error');
       return;
     }
-    const newBalance=Number(result.snapshot.val())||0;
-    if(adminFoundCredits) adminFoundCredits.textContent=String(newBalance);
-    setAdminAddStatus(`Berhasil menambahkan ${amount} credit. Saldo sekarang: ${newBalance}.`,'success');
-    toast('Credit berhasil ditambahkan','success');
-    adminCreditAmountInput.value='';
+    const newUntil=Number(result.snapshot.val())||0;
+    if(adminFoundCredits) adminFoundCredits.textContent=describeSub(newUntil);
+    setAdminAddStatus(`Berhasil upgrade ke PRO. Aktif sampai ${formatSubDate(newUntil)}.`,'success');
+    toast('Akun berhasil diupgrade ke PRO','success');
   }catch(err){
-    console.error('Admin add credit error', err);
+    console.error('Admin upgrade premium error', err);
     const detail = (err && (err.code || err.message)) || 'unknown error';
-    setAdminAddStatus(`Gagal menambahkan credit (${detail}). Kemungkinan besar Firebase Rules belum mengizinkan UID admin ini menulis ke "credits".`,'error');
+    setAdminAddStatus(`Gagal upgrade akun (${detail}). Kemungkinan besar Firebase Rules belum mengizinkan UID admin ini menulis ke "premiumUntil".`,'error');
   }finally{
-    setBtnLoading(btnAdminAddCredit, false, 'Tambah Credit');
+    setBtnLoading(btnAdminAddCredit, false, 'Upgrade Premium');
   }
 });
 
@@ -2650,12 +2678,12 @@ function renderUpscaleTab(){
       if(remaining>0){
         subLabel=`${remaining}× tersisa hari ini`;
       }else if(hasProCredits()){
-        subLabel='Kuota habis — lanjut pakai 1 credit/export';
+        subLabel='Kuota habis — PRO aktif, tanpa batas';
       }else{
         subLabel='Kuota habis hari ini';
       }
     }else if(tier.badgeClass==='pro'){
-      subLabel='1 credit / export';
+      subLabel='Khusus PRO';
     }else{
       subLabel=`${ow}×${oh}`;
     }
@@ -2687,7 +2715,7 @@ function renderUpscaleTab(){
       <div class="control-label"><b>Resolusi ${isVideo?'Video':'Foto'}</b></div>
       ${tierGrid}
     </div>
-    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> HD &amp; 2K gratis tanpa batas. 4K gratis 5× per hari, setelah itu otomatis pakai 1 credit PRO/export selama credit masih ada. 8K khusus <b>PRO</b> — 1 credit terpakai saat export.</p>
+    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> HD &amp; 2K gratis tanpa batas. 4K gratis 5× per hari, setelah itu otomatis pakai fitur PRO selama langganan aktif. 8K khusus <b>PRO</b> — perlu langganan aktif.</p>
     <div class="control-row">
       <div class="control-label"><b>Aspect Ratio</b></div>
       ${aspectGrid}
@@ -2703,7 +2731,7 @@ function renderUpscaleTab(){
       if(tier.dailyLimit){
         const usage=getResUsage(key);
         if(usage.count>=tier.dailyLimit && !hasProCredits()){
-          toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Gunakan credit PRO untuk lanjut, atau coba lagi besok.`,'error');
+          toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Berlangganan PRO untuk lanjut, atau coba lagi besok.`,'error');
           return;
         }
       }
@@ -2714,14 +2742,14 @@ function renderUpscaleTab(){
       pushHistory();
       haptic();
       if(tier.badgeClass==='pro'){
-        toast(`Resolusi ${tier.label} dipilih — fitur PRO, 1 credit terpakai saat export`);
+        toast(`Resolusi ${tier.label} dipilih — fitur PRO, perlu langganan aktif`);
       }else if(tier.dailyLimit){
         const usage=getResUsage(key);
         const remaining=Math.max(0,tier.dailyLimit-usage.count);
         if(remaining>0){
           toast(`Resolusi ${tier.label} dipilih — ${remaining}× gratis tersisa hari ini`);
         }else{
-          toast(`Resolusi ${tier.label} dipilih — kuota gratis habis, export berikutnya pakai 1 credit PRO`);
+          toast(`Resolusi ${tier.label} dipilih — kuota gratis habis, aktifkan langganan PRO untuk lanjut tanpa batas`);
         }
       }else{
         toast(`Resolusi ${tier.label} dipilih — akan diterapkan saat export`);
@@ -2823,7 +2851,7 @@ function renderDetailTab(){
       </div>
     </div>
     ${slider('denoise','Denoise',0,100,'denoise')}
-    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Sharp, Ultra Sharp &amp; semua Denoise (Low/Medium/High) adalah fitur <b>PRO</b> — 1 credit terpakai saat export.</p>
+    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Sharp, Ultra Sharp &amp; semua Denoise (Low/Medium/High) adalah fitur <b>PRO</b> — perlu langganan aktif.</p>
   `;
   wireSlider('sharpen',()=>{ S.settings.activeSharpenPreset=null; });
   wireSlider('denoise',()=>{ S.settings.activeDenoisePreset=null; });
@@ -2833,7 +2861,7 @@ function renderDetailTab(){
       S.settings.sharpen=sharpenPresets[k];
       S.settings.activeSharpenPreset=k;
       renderDetailTab(); renderPreview(true); pushHistory(); haptic();
-      if(PREMIUM_SHARPEN.includes(k)) toast(`Sharpen "${k}" — fitur PRO, 1 credit terpakai saat export`);
+      if(PREMIUM_SHARPEN.includes(k)) toast(`Sharpen "${k}" — fitur PRO, perlu langganan aktif`);
     });
   });
   sheetBody.querySelectorAll('#denoiseChips .chip').forEach(chip=>{
@@ -2842,7 +2870,7 @@ function renderDetailTab(){
       S.settings.denoise=denoisePresets[k];
       S.settings.activeDenoisePreset=k;
       renderDetailTab(); renderPreview(true); pushHistory(); haptic();
-      if(PREMIUM_DENOISE.includes(k)) toast(`Denoise "${k}" — fitur PRO, 1 credit terpakai saat export`);
+      if(PREMIUM_DENOISE.includes(k)) toast(`Denoise "${k}" — fitur PRO, perlu langganan aktif`);
     });
   });
 }
@@ -2904,7 +2932,7 @@ function renderColorTab(){
     ${slider('highlights','Highlight',-100,100,'highlights')}
     ${slider('shadows','Shadow',-100,100,'shadows')}
     ${slider('hue','Hue',-180,180,'hue')}
-    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Vivid, Cinematic &amp; HDR Look adalah fitur <b>PRO</b> — 1 credit terpakai saat export. Preset Natural tetap gratis.</p>
+    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Vivid, Cinematic &amp; HDR Look adalah fitur <b>PRO</b> — perlu langganan aktif. Preset Natural tetap gratis.</p>
   `;
   ['brightness','contrast','saturation','vibrance','temperature','highlights','shadows','gamma','hue'].forEach(k=>{
     wireSlider(k,()=>{ S.settings.activePreset=null; S.settings.activeFilter=null; S.settings.activeFilterPremium=false; });
@@ -2916,7 +2944,7 @@ function renderColorTab(){
       S.settings.activePreset=k;
       S.settings.activeFilter=null; S.settings.activeFilterPremium=false;
       renderColorTab(); renderPreview(true); pushHistory(); haptic();
-      if(PREMIUM_COLOR.includes(k)) toast(`Preset "${k}" — fitur PRO, 1 credit terpakai saat export`);
+      if(PREMIUM_COLOR.includes(k)) toast(`Preset "${k}" — fitur PRO, perlu langganan aktif`);
     });
   });
   if(editingId){
@@ -3061,7 +3089,7 @@ function renderFilterTab(){
     <p style="font-size:12px;color:var(--text-dim);line-height:1.5;margin:10px 2px 0;">
       Filter mengganti pengaturan warna di tab Color dengan tampilan siap pakai. Bisa disesuaikan lagi lewat tab Color setelahnya.
     </p>
-    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Filter bertanda <b>PRO</b> memakai 1 credit saat export. Filter Gratis tidak memakai credit sama sekali.</p>
+    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Filter bertanda <b>PRO</b> perlu langganan aktif. Filter Gratis bisa dipakai tanpa langganan.</p>
 
     <div class="control-row" style="margin-top:6px;">
       <div class="control-label"><b><i class="fa-solid fa-wand-magic-sparkles"></i> Buat Filter Sendiri</b></div>
@@ -3118,7 +3146,7 @@ function renderFilterTab(){
       S.settings.activeFilterPremium=!!p.premium;
       S.settings.activePreset=null;
       renderFilterTab(); renderPreview(true); pushHistory(); haptic();
-      toast(p.premium?`Filter "${k}" — fitur PRO, 1 credit terpakai saat export`:`Filter "${k}" diterapkan`);
+      toast(p.premium?`Filter "${k}" — fitur PRO, perlu langganan aktif`:`Filter "${k}" diterapkan`);
     });
   });
   function currentFilterNameOrDefault(){
@@ -3232,11 +3260,11 @@ function renderFaceTab(){
       Fitur ini tidak menggunakan model AI/deteksi wajah — melainkan penyesuaian clarity ringan yang aman diterapkan pada keseluruhan gambar untuk membantu memperjelas detail kulit &amp; fitur wajah tanpa membuat foto terlihat kasar.
     </p>
     ${isVideo?`<p style="font-size:12px;color:var(--text-dim);line-height:1.6;margin-top:10px;">Untuk video, efek ini diterapkan per-frame saat proses export — video dengan resolusi/durasi besar mungkin memakan waktu export sedikit lebih lama.</p>`:''}
-    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Face Detail adalah fitur <b>PRO</b> — 1 credit terpakai saat export.</p>`;
+    <p class="premium-hint"><i class="fa-solid fa-bolt"></i> Face Detail adalah fitur <b>PRO</b> — perlu langganan aktif.</p>`;
   $('faceToggle').addEventListener('click',()=>{
     S.settings.faceDetail=!S.settings.faceDetail;
     renderFaceTab(); renderPreview(true); pushHistory(); haptic();
-    if(S.settings.faceDetail) toast('Face Detail aktif — fitur PRO, 1 credit terpakai saat export');
+    if(S.settings.faceDetail) toast('Face Detail aktif — fitur PRO, perlu langganan aktif');
   });
 }
 
@@ -3758,8 +3786,9 @@ async function buildFinalCanvasWithProgress(onProgress){
 let exportCancelFn = null;
 
 /* ---- PREMIUM DETECTION ----
-   Everything runs on-device. A photo counts as "Premium" (costs 1 credit)
-   if ANY of the currently-active edits are premium-tier. We check the
+   Everything runs on-device. A photo counts as "Premium" (requires an
+   active PRO subscription) if ANY of the currently-active edits are
+   premium-tier. We check the
    effective values (not just preset names) so dragging a slider manually
    past the free range is still correctly detected as Premium. */
 function isColorPremiumActive(){
@@ -3779,8 +3808,8 @@ function isPremiumActive(){
   const tier=getTier(s.resTier);
   if(s.resTier==='8k') return true;
   // 4K (or any future dailyLimit tier): free up to the daily quota, then
-  // automatically falls back to PRO credit so it can be used without limit
-  // as long as the user still has credits.
+  // automatically falls back to requiring an active PRO subscription so it
+  // can be used without limit as long as the subscription stays active.
   if(tier.dailyLimit && getResUsage(tier.key).count>=tier.dailyLimit) return true;
   if(s.sharpen>45) return true;      // Soft(15)/Natural(35)=free, Sharp(60)/Ultra Sharp(85)=premium
   if(s.denoise>0) return true;       // Off=free, Low/Medium/High=premium
@@ -3791,41 +3820,25 @@ function isPremiumActive(){
   return false;
 }
 function hasProCredits(){
-  return !!S.uid && S.credits!==null && S.credits>0;
+  return isSubscriptionActive();
 }
 
-/* ---- CREDIT CHARGING (client-side, on-device processing) ----
-   Since there's no server doing the actual photo processing anymore, the
-   credit deduction happens directly from the browser via a Firebase
-   transaction — and only AFTER the export blob has been built successfully,
-   never before. This avoids ever needing to "refund" a charge (which would
-   require allowing self-increment writes, a much bigger security hole);
-   the matching Firebase Rules only need to allow a self-write that's
-   exactly "current - 1" and never negative, which can't be gamed into
-   raising one's own balance. A technically-savvy user could still bypass
-   the client-side isPremiumActive() check entirely (e.g. via devtools)
-   since there's no server verifying the photo was actually processed —
-   that's an inherent tradeoff of removing the cloud backend, but at worst
-   it means a "free" Premium export, never a corrupted/negative balance or
-   a self-inflated one. */
-async function chargeCreditIfNeeded(){
-  if(!S.uid){ toast('Login untuk menggunakan fitur PRO.'); return {ok:false}; }
-  if(S.credits===null){ toast('Menunggu data akun. Coba lagi sebentar.','error'); return {ok:false}; }
-  if(S.credits<=0){ openOutOfCreditModal(); return {ok:false}; }
-  if(!firebaseDbRef){ toast('Database belum siap. Coba lagi sebentar.','error'); return {ok:false}; }
-  try{
-    const result=await firebaseDbRef.ref('users/'+S.uid+'/credits').transaction(current=>{
-      const c=Number(current)||0;
-      if(c<=0) return; // undefined return aborts the transaction
-      return c-1;
-    });
-    if(!result.committed){ openOutOfCreditModal(); return {ok:false}; }
-    return {ok:true};
-  }catch(err){
-    console.error('Charge credit failed', err);
-    toast('Gagal menggunakan credit: '+((err&&(err.code||err.message))||'error'),'error');
-    return {ok:false};
-  }
+/* ---- PRO GATING (client-side, on-device processing) ----
+   Since there's no server doing the actual photo processing, PRO access is
+   simply gated on the subscription expiry timestamp (users/$uid/premiumUntil,
+   written only by the admin panel / admin.html) — no per-export charge or
+   decrement anymore. A subscribed user can export unlimited PRO photos/
+   videos for as long as premiumUntil is in the future. A technically-savvy
+   user could still bypass the client-side isPremiumActive() check entirely
+   (e.g. via devtools) since there's no server verifying the export — that's
+   an inherent tradeoff of removing the cloud backend, but at worst it means
+   a "free" Premium export, never a way to grant oneself a subscription
+   (premiumUntil is only writable by the admin UID server-side). */
+function requirePremiumAccess(){
+  if(!S.uid){ toast('Login untuk menggunakan fitur PRO.'); return false; }
+  if(S.premiumUntil===null){ toast('Menunggu data akun. Coba lagi sebentar.','error'); return false; }
+  if(!isSubscriptionActive()){ openOutOfCreditModal(); return false; }
+  return true;
 }
 
 function checkResolutionQuota(){
@@ -3833,12 +3846,13 @@ function checkResolutionQuota(){
   if(tier.dailyLimit){
     const usage=getResUsage(tier.key);
     if(usage.count>=tier.dailyLimit && !hasProCredits()){
-      toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Gunakan credit PRO untuk pakai ${tier.label} tanpa batas selama credit masih ada, atau coba lagi besok.`,'error');
+      toast(`Batas ${tier.label} gratis harian tercapai (${tier.dailyLimit}×/hari). Berlangganan PRO untuk pakai ${tier.label} tanpa batas, atau coba lagi besok.`,'error');
       return false;
     }
-    // Quota exceeded but has PRO credits — allowed through; isPremiumActive()
-    // already flags this export as premium so the normal credit pre-check +
-    // charge flow in exportImage/exportVideo takes care of the rest.
+    // Quota exceeded but has an active PRO subscription — allowed through;
+    // isPremiumActive() already flags this export as premium so the normal
+    // pre-check in exportImage/exportVideo (requirePremiumAccess) takes care
+    // of the rest.
   }
   return true;
 }
@@ -3854,11 +3868,9 @@ async function exportImage(){
 
   const usesPremium=isPremiumActive();
   if(usesPremium){
-    // Pre-check only (no charge yet) — avoids starting a long render just
-    // to find out there's no credit.
-    if(!S.uid){ toast('Login untuk menggunakan fitur PRO.'); return; }
-    if(S.credits===null){ toast('Menunggu data akun. Coba lagi sebentar.','error'); return; }
-    if(S.credits<=0){ openOutOfCreditModal(); return; }
+    // Pre-check only — avoids starting a long render just to find out the
+    // subscription isn't active.
+    if(!requirePremiumAccess()) return;
   }else{
     const usage=getFreeUsage();
     if(usage.count>=CONFIG.FREE_DAILY_LIMIT){
@@ -3895,11 +3907,6 @@ async function exportImage(){
         toast('Gagal membuat file export.','error');
         return;
       }
-      // Charge the credit only now that the export genuinely succeeded.
-      if(usesPremium){
-        const charge=await chargeCreditIfNeeded();
-        if(!charge.ok){ exportOverlay.classList.remove('active'); return; }
-      }
       exportOverlay.classList.remove('active');
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');
@@ -3909,7 +3916,7 @@ async function exportImage(){
       if(!usesPremium){ incrementFreeUsage(); refreshFreeUsageUI(); }
       incrementResUsage(S.settings.resTier);
       saveProjectRecord(finalCanvas, a.download);
-      toast(usesPremium?'Foto PRO berhasil diunduh (1 credit terpakai)':'Foto berhasil diunduh','success');
+      toast(usesPremium?'Foto PRO berhasil diunduh':'Foto berhasil diunduh','success');
     }, mime, S.exportFormat==='png'?undefined:qualityValue);
 
   }catch(err){
@@ -4018,9 +4025,7 @@ async function exportVideo(){
 
   const usesPremium=isPremiumActive();
   if(usesPremium){
-    if(!S.uid){ toast('Login untuk menggunakan fitur PRO.'); return; }
-    if(S.credits===null){ toast('Menunggu data akun. Coba lagi sebentar.','error'); return; }
-    if(S.credits<=0){ openOutOfCreditModal(); return; }
+    if(!requirePremiumAccess()) return;
   }else{
     const usage=getFreeUsage();
     if(usage.count>=CONFIG.FREE_DAILY_LIMIT){
@@ -4158,10 +4163,6 @@ async function exportVideo(){
       }
     }
 
-    if(usesPremium){
-      const charge=await chargeCreditIfNeeded();
-      if(!charge.ok){ exportOverlay.classList.remove('active'); startVideoPreviewLoop(); return; }
-    }
     exportOverlay.classList.remove('active');
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
@@ -4170,7 +4171,7 @@ async function exportVideo(){
     setTimeout(()=>URL.revokeObjectURL(url),8000);
     if(!usesPremium){ incrementFreeUsage(); refreshFreeUsageUI(); }
     incrementResUsage(S.settings.resTier);
-    toast(usesPremium?`Video PRO (${tier.label}) berhasil diunduh (1 credit terpakai)`:`Video ${tier.label} berhasil diunduh`,'success');
+    toast(usesPremium?`Video PRO (${tier.label}) berhasil diunduh`:`Video ${tier.label} berhasil diunduh`,'success');
   }catch(err){
     console.error(err);
     sourceVideo.muted=false;
@@ -4511,7 +4512,7 @@ function removeMosaicLayer(id){
    each one Free or PRO — right from inside the app, no code edits needed.
 
    Firestore schema — stickers/{stickerId}:
-     name(string), url(ImgBB image url), premium(bool: true=PRO/1 credit,
+     name(string), url(ImgBB image url), premium(bool: true=PRO subscription,
      false=Free), addedBy(uid), addedByEmail, createdAt(serverTimestamp)
 
    REQUIRED Firestore Security Rules (set these in the Firebase console —
@@ -4706,7 +4707,7 @@ function addStickerLayer(sticker){
   };
   S.stickerLayers.push(layer);
   renderPreview(true); pushHistory(); haptic();
-  toast(sticker.premium?`Stiker "${sticker.name}" — fitur PRO, 1 credit terpakai saat export`:`Stiker "${sticker.name}" ditambahkan`);
+  toast(sticker.premium?`Stiker "${sticker.name}" — fitur PRO, perlu langganan aktif`:`Stiker "${sticker.name}" ditambahkan`);
   return layer;
 }
 function removeStickerLayer(id){
@@ -4721,7 +4722,7 @@ window.addEventListener('online',()=>{ if(toolSheet.classList.contains('active')
 window.addEventListener('offline',()=>{
   if(toolSheet.classList.contains('active')) refreshOpenSheet();
   // Photo processing is fully on-device, so being offline doesn't block it.
-  // Only login / credit sync needs a connection.
+  // Only login / subscription-status sync needs a connection.
 });
 
 function init(){
@@ -4731,7 +4732,7 @@ function init(){
   if(!S.worker){ S.prefs.hwAccel=false; }
   updateUndoRedoButtons();
   refreshFreeUsageUI();
-  updateCreditsUI();
+  updateSubscriptionUI();
   initFirebase();
 }
 init();

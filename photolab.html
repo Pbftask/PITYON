@@ -18,7 +18,7 @@
       <svg viewBox="0 0 24 24" fill="none"><path d="M4 8.5C4 7.12 5.12 6 6.5 6h1.2c.4 0 .77-.2.99-.53l.7-1.06A1.5 1.5 0 0 1 10.65 3.7h2.7c.5 0 .97.25 1.26.67l.7 1.06c.22.33.6.53.99.53h1.2C18.88 6 20 7.12 20 8.5v8c0 1.38-1.12 2.5-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-8Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12.2" r="3.4" stroke="currentColor" stroke-width="1.8"/></svg>
     </div>
     <h2 id="authTitle">PhotoLab</h2>
-    <p class="login-sub" id="authSub">Masuk atau daftar untuk menyimpan credit PRO kamu.</p>
+    <p class="login-sub" id="authSub">Masuk atau daftar untuk menyimpan status langganan PRO kamu.</p>
 
     <!-- ---- LOGIN VIEW ---- -->
     <div class="auth-view active" id="viewLogin">
@@ -77,7 +77,7 @@
       </div>
     </div>
     <div class="topbar-actions">
-      <button class="credit-pill" id="btnCreditCenter" title="Credit Center" aria-label="Credit Center">
+      <button class="credit-pill" id="btnCreditCenter" title="Status Langganan" aria-label="Status Langganan">
         <span class="lightning"><i class="fa-solid fa-bolt"></i></span><span id="creditCountText">–</span>
       </button>
       <button class="icon-btn" id="btnCompressConvert" title="Compress &amp; Convert" aria-label="Compress &amp; Convert">
@@ -252,7 +252,7 @@
 <div id="pageAccount" class="page">
   <header class="topbar">
     <div class="brand">
-      <div class="brand-text"><b>Akun</b><span>Profil &amp; credit kamu</span></div>
+      <div class="brand-text"><b>Akun</b><span>Profil &amp; langganan kamu</span></div>
     </div>
   </header>
   <div class="page-scroll">
@@ -286,14 +286,14 @@
     <p class="avatar-upload-status" id="avatarUploadStatus" style="display:none;"></p>
 
     <div class="credit-hero">
-      <span class="credit-hero-label">Your Credits</span>
+      <span class="credit-hero-label">Status Langganan</span>
       <span class="credit-hero-num" id="creditHeroNumAcc">–</span>
     </div>
-    <button class="btn-primary" id="btnBuyCreditAccount" style="width:100%;justify-content:center;"><i class="fa-solid fa-bolt"></i>&nbsp;Buy Credit</button>
+    <button class="btn-primary" id="btnBuyCreditAccount" style="width:100%;justify-content:center;"><i class="fa-solid fa-bolt"></i>&nbsp;Berlangganan</button>
 
     <div class="modal-section">
       <h4>UID Kamu</h4>
-      <p style="font-size:11.5px;color:var(--text-dim);margin:0 0 8px;">Tunjukkan UID ini ke admin kalau butuh top-up credit.</p>
+      <p style="font-size:11.5px;color:var(--text-dim);margin:0 0 8px;">Tunjukkan UID ini ke admin kalau butuh diupgrade ke PRO.</p>
       <div class="uid-row">
         <code id="myUidText">–</code>
         <button class="btn-ghost uid-copy-btn" id="btnCopyUid" type="button">Salin</button>
@@ -301,18 +301,18 @@
     </div>
 
     <div class="modal-section" style="margin-top:20px;">
-      <h4>Credit Packages</h4>
+      <h4>Paket Langganan</h4>
       <div class="credit-pkg-row">
-        <button class="credit-pkg" data-pkg="10"><b>10</b><span>Credits</span></button>
-        <button class="credit-pkg" data-pkg="50"><b>50</b><span>Credits</span></button>
-        <button class="credit-pkg" data-pkg="100"><b>100</b><span>Credits</span></button>
+        <button class="credit-pkg" data-pkg="weekly"><b>Mingguan</b><span>7 hari</span></button>
+        <button class="credit-pkg" data-pkg="monthly"><b>Bulanan</b><span>30 hari</span></button>
+        <button class="credit-pkg" data-pkg="yearly"><b>Tahunan</b><span>365 hari</span></button>
       </div>
       <p style="font-size:11.5px;color:var(--text-dim);margin:8px 0 0;">Tap paket untuk membuka halaman pembelian.</p>
     </div>
 
     <div class="modal-section">
       <h4>Status</h4>
-      <div class="about-row"><span>PRO (on-device)</span><span>1 credit / photo</span></div>
+      <div class="about-row"><span>PRO (on-device)</span><span>Akses tanpa batas selama langganan aktif</span></div>
       <div class="about-row"><span>Free (on-device)</span><span id="freeUsageTextAcc">–/20 today</span></div>
     </div>
 
@@ -323,8 +323,8 @@
 
     <!-- ================= ADMIN PANEL (only visible for admin email) ================= -->
     <div class="modal-section admin-section" id="adminSection" style="display:none;">
-      <h4><i class="fa-solid fa-gear"></i> Admin — Tambah Credit</h4>
-      <p style="font-size:11.5px;color:var(--text-dim);margin:0 0 10px;">Masukkan UID user, cari untuk konfirmasi, lalu tambahkan credit-nya.</p>
+      <h4><i class="fa-solid fa-gear"></i> Admin — Upgrade Premium</h4>
+      <p style="font-size:11.5px;color:var(--text-dim);margin:0 0 10px;">Masukkan UID user, cari untuk konfirmasi, lalu upgrade akunnya ke PRO. Fungsi yang sama juga tersedia di <code>admin.html</code>.</p>
 
       <label class="admin-label">UID User</label>
       <div class="admin-uid-row">
@@ -334,14 +334,18 @@
 
       <div class="admin-user-found" id="adminUserFound" style="display:none;">
         <div class="about-row"><span>Email</span><span id="adminFoundEmail">–</span></div>
-        <div class="about-row"><span>Credit saat ini</span><span id="adminFoundCredits">–</span></div>
+        <div class="about-row"><span>Status saat ini</span><span id="adminFoundCredits">–</span></div>
       </div>
       <p class="admin-status" id="adminFindStatus"></p>
 
-      <label class="admin-label" style="margin-top:14px;">Jumlah Credit Ditambahkan</label>
-      <input type="number" id="adminCreditAmount" class="auth-input" placeholder="Contoh: 10" min="1" step="1" inputmode="numeric">
+      <label class="admin-label" style="margin-top:14px;">Paket Langganan</label>
+      <select id="adminCreditAmount" class="auth-input">
+        <option value="7">Mingguan — 7 hari</option>
+        <option value="30" selected>Bulanan — 30 hari</option>
+        <option value="365">Tahunan — 365 hari</option>
+      </select>
 
-      <button class="btn-primary" id="btnAdminAddCredit" style="width:100%;justify-content:center;margin-top:12px;" disabled>Tambah Credit</button>
+      <button class="btn-primary" id="btnAdminAddCredit" style="width:100%;justify-content:center;margin-top:12px;" disabled>Upgrade Premium</button>
       <p class="admin-status" id="adminAddStatus"></p>
     </div>
   </div>
@@ -484,16 +488,16 @@
       <div class="about-row"><span>Version</span><span>2.1.0</span></div>
       <div class="about-row"><span>Free</span><span>100% On-device</span></div>
       <div class="about-row"><span>PRO</span><span>100% On-device</span></div>
-      <div class="about-row"><span>Network access</span><span>Only required for login &amp; credit sync</span></div>
+      <div class="about-row"><span>Network access</span><span>Only required for login &amp; subscription status sync</span></div>
     </div>
     <button class="btn-ghost" style="width:100%;text-align:center;" id="btnCloseSettings2">Close</button>
   </div>
 </div>
 
-<!-- ================= CREDIT CENTER MODAL ================= -->
+<!-- ================= SUBSCRIPTION / PREMIUM CENTER MODAL ================= -->
 <div class="modal-backdrop" id="creditCenterModal">
   <div class="modal-card">
-    <div class="modal-head"><h3>Credit Center</h3><button class="icon-btn" id="btnCloseCreditCenter"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+    <div class="modal-head"><h3>Premium Center</h3><button class="icon-btn" id="btnCloseCreditCenter"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
 
     <div class="user-profile-row">
       <img id="userProfileAvatar" class="user-profile-avatar" alt="" style="display:none;">
@@ -505,36 +509,36 @@
     </div>
 
     <div class="credit-hero">
-      <span class="credit-hero-label">Your Credits</span>
+      <span class="credit-hero-label">Status Langganan</span>
       <span class="credit-hero-num" id="creditHeroNum">–</span>
     </div>
-    <button class="btn-primary" id="btnBuyCredit" style="width:100%;justify-content:center;"><i class="fa-solid fa-bolt"></i>&nbsp;Buy Credit</button>
+    <button class="btn-primary" id="btnBuyCredit" style="width:100%;justify-content:center;"><i class="fa-solid fa-bolt"></i>&nbsp;Berlangganan</button>
 
     <div class="modal-section" style="margin-top:20px;">
-      <h4>Credit Packages</h4>
+      <h4>Paket Langganan</h4>
       <div class="credit-pkg-row">
-        <button class="credit-pkg" data-pkg="10"><b>10</b><span>Credits</span></button>
-        <button class="credit-pkg" data-pkg="50"><b>50</b><span>Credits</span></button>
-        <button class="credit-pkg" data-pkg="100"><b>100</b><span>Credits</span></button>
+        <button class="credit-pkg" data-pkg="weekly"><b>Mingguan</b><span>7 hari</span></button>
+        <button class="credit-pkg" data-pkg="monthly"><b>Bulanan</b><span>30 hari</span></button>
+        <button class="credit-pkg" data-pkg="yearly"><b>Tahunan</b><span>365 hari</span></button>
       </div>
       <p style="font-size:11.5px;color:var(--text-dim);margin:8px 0 0;">Tap paket untuk membuka halaman pembelian.</p>
     </div>
 
     <div class="modal-section">
       <h4>Status</h4>
-      <div class="about-row"><span>PRO (on-device)</span><span id="creditStatusText">1 credit / photo</span></div>
+      <div class="about-row"><span>PRO (on-device)</span><span id="creditStatusText">Akses tanpa batas selama langganan aktif</span></div>
       <div class="about-row"><span>Free (on-device)</span><span id="freeUsageText">–/20 today</span></div>
     </div>
     <button class="btn-ghost" style="width:100%;text-align:center;" id="btnCloseCreditCenter2">Close</button>
   </div>
 </div>
 
-<!-- ================= OUT OF CREDIT MODAL ================= -->
+<!-- ================= SUBSCRIPTION REQUIRED / EXPIRED MODAL ================= -->
 <div class="modal-backdrop" id="outOfCreditModal">
   <div class="modal-card" style="text-align:center;">
-    <div class="modal-head" style="justify-content:center;"><h3>Credit kamu habis</h3></div>
-    <p style="font-size:13.5px;color:var(--text-dim);margin:0 0 18px;line-height:1.5;">Beli credit untuk melanjutkan menggunakan fitur PRO.</p>
-    <button class="btn-primary" id="btnBuyCreditFromModal" style="width:100%;justify-content:center;margin-top:0;">BUY CREDIT</button>
+    <div class="modal-head" style="justify-content:center;"><h3>Langganan PRO kamu belum aktif</h3></div>
+    <p style="font-size:13.5px;color:var(--text-dim);margin:0 0 18px;line-height:1.5;">Berlangganan mingguan/bulanan/tahunan untuk melanjutkan menggunakan fitur PRO.</p>
+    <button class="btn-primary" id="btnBuyCreditFromModal" style="width:100%;justify-content:center;margin-top:0;">BERLANGGANAN</button>
     <button class="btn-ghost" style="width:100%;text-align:center;margin-top:10px;" id="btnCloseOutOfCredit">Close</button>
   </div>
 </div>
