@@ -6,7 +6,7 @@
    ========================================================================== */
 const CONFIG = {
   FREE_DAILY_LIMIT: 20,
-  MAX_VIDEO_SIZE_MB: 300,
+  MAX_VIDEO_SIZE_MB: 600,
   // Get a free key at https://api.imgbb.com/ (login with Google, click
   // "Add API key"), then paste it below. Used only to host the user's
   // uploaded profile photo — no other images are ever sent anywhere.
@@ -76,9 +76,12 @@ function syncScaleFromTier(){
 // the user's own subscription status. All photo processing (Free AND Premium)
 // runs fully on-device in the browser; there is no cloud AI backend. When a
 // Premium feature is used, access is gated on premiumUntil (a timestamp)
-// — only the admin panel / admin.html can write that field (see
-// requirePremiumAccess()); this must be matched by equivalent Realtime
-// Database security rules server-side, or the write will be rejected.
+// — normally only the admin panel / admin.html can write that field (see
+// requirePremiumAccess()), with ONE exception: grantFreeTrialIfNew() lets a
+// brand-new account write its own premiumUntil exactly once, to activate a
+// 7-day free PRO trial on signup. This must be matched by equivalent
+// Realtime Database security rules server-side, or the writes will be
+// rejected — see the rules note above grantFreeTrialIfNew().
 const firebaseConfig = {
   apiKey: "AIzaSyAVALbkISki4F7kp0nWE_Eoa3qkfebiw7w",
   authDomain: "vidly-23088.firebaseapp.com",
@@ -129,6 +132,7 @@ const S = {
   // ---- Account / Premium subscription state (all processing is on-device) ----
   uid:null,
   premiumUntil:null,           // null = not loaded yet; timestamp (ms) subscription expires. 0/past = not subscribed
+  trialGrantedAt:null,         // timestamp (ms) the 7-day free trial was granted, if any (null = no trial on this account)
   isAdmin:false,
   userProfile:null,            // { name, username, email, photo } once signed in
 
@@ -248,7 +252,7 @@ function refreshFreeUsageUI(){
    (users/$uid/premiumUntil). It never writes to it — only the admin panel
    (with an admin UID) is allowed to write that field; see Firebase Rules.
    ========================================================================== */
-let firebaseAuthRef=null, firebaseDbRef=null, firestoreDbRef=null, premiumWatchRef=null;
+let firebaseAuthRef=null, firebaseDbRef=null, firestoreDbRef=null, premiumWatchRef=null, trialWatchRef=null;
 let authBusy=false;
 let resendCooldownTimer=null;
 
@@ -355,8 +359,9 @@ function initFirebase(){
 
 // ---- STATE 1: NOT_LOGGED_IN ----
 function handleLoggedOutState(){
-  S.uid=null; S.premiumUntil=null; S.userProfile=null; S.isAdmin=false;
+  S.uid=null; S.premiumUntil=null; S.trialGrantedAt=null; S.userProfile=null; S.isAdmin=false;
   if(premiumWatchRef){ try{ premiumWatchRef.off(); }catch(e){} premiumWatchRef=null; }
+  if(trialWatchRef){ try{ trialWatchRef.off(); }catch(e){} trialWatchRef=null; }
   stopResendCooldown();
   updateSubscriptionUI();
   updateUserProfileUI();
@@ -366,6 +371,37 @@ function handleLoggedOutState(){
 
 // ---- STATE 2: AUTHENTICATED ----
 const ADMIN_EMAILS=['opintar114@gmail.com'];
+
+/* ---- FREE TRIAL FOR NEW USERS (7 days of PRO) ----
+   Called once, right after a brand-new account is created via the register
+   form. Uses a Realtime Database transaction on users/$uid/trialGranted as
+   an atomic "claim ticket": it can only ever transition null -> true once,
+   so even if this ran twice (double click, retry, re-login) the trial is
+   granted at most once per account. Only after winning that claim do we
+   write premiumUntil.
+   IMPORTANT: Firebase Rules must allow a signed-in user to write their own
+   users/$uid/trialGranted (only when it doesn't exist yet) and their own
+   users/$uid/premiumUntil (only when it doesn't exist yet AND trialGranted
+   is being set true in the same account) — see rules note in comments near
+   ADMIN write restriction above. Without that rule change this will fail
+   silently with a permission error and no trial will be granted. */
+const TRIAL_DAYS=7;
+async function grantFreeTrialIfNew(uid){
+  if(!firebaseDbRef || !uid) return;
+  try{
+    const claim=await firebaseDbRef.ref('users/'+uid+'/trialGranted')
+      .transaction(current=> current ? undefined : true); // abort if already set
+    if(!claim.committed || claim.snapshot.val()!==true) return; // trial already used or claim lost
+    const until=Date.now()+TRIAL_DAYS*24*60*60*1000;
+    await firebaseDbRef.ref('users/'+uid).update({
+      premiumUntil:until,
+      trialGrantedAt:firebase.database.ServerValue.TIMESTAMP
+    });
+    toast(`🎉 Selamat datang! Fitur PRO gratis aktif selama ${TRIAL_DAYS} hari`,'success');
+  }catch(err){
+    console.warn('Free trial grant skipped (kemungkinan Firebase Rules belum mengizinkan)', err);
+  }
+}
 function handleAuthenticatedState(user){
   S.uid=user.uid;
   S.userProfile={ name:(user.email||'').split('@')[0], username:'', email:user.email||'', photo:'' };
@@ -428,9 +464,12 @@ if(formRegister) formRegister.addEventListener('submit', async (e)=>{
   const btn=$('btnRegisterSubmit');
   setBtnLoading(btn, true, 'Daftar');
   try{
-    await firebaseAuthRef.createUserWithEmailAndPassword(email, password);
+    const cred=await firebaseAuthRef.createUserWithEmailAndPassword(email, password);
     formRegister.reset();
-    // onAuthStateChanged will route straight into the app once created.
+    // Brand-new account: grant the 7-day free PRO trial. Fire-and-forget —
+    // onAuthStateChanged already routes straight into the app once created,
+    // this just unlocks PRO on top of that. See grantFreeTrialIfNew() below.
+    if(cred && cred.user) grantFreeTrialIfNew(cred.user.uid);
   }catch(err){
     console.error('Register error', err);
     setAuthError(mapFirebaseError(err));
@@ -512,6 +551,7 @@ if(linkForgotToLogin) linkForgotToLogin.addEventListener('click', ()=>showAuthVi
 async function signOutUser(){
   try{
     if(premiumWatchRef){ try{ premiumWatchRef.off(); }catch(e){} premiumWatchRef=null; }
+    if(trialWatchRef){ try{ trialWatchRef.off(); }catch(e){} trialWatchRef=null; }
     if(firebaseAuthRef) await firebaseAuthRef.signOut();
     closeCreditCenter();
     toast('Berhasil logout.','success');
@@ -698,6 +738,12 @@ if(usernameInput) usernameInput.addEventListener('keydown',(e)=>{
 function subscribePremiumStatus(uid){
   try{
     if(premiumWatchRef) premiumWatchRef.off();
+    if(trialWatchRef) trialWatchRef.off();
+    trialWatchRef=firebaseDbRef.ref('users/'+uid+'/trialGrantedAt');
+    trialWatchRef.on('value',(snap)=>{
+      S.trialGrantedAt = snap.exists() ? (Number(snap.val())||null) : null;
+      updateSubscriptionUI();
+    },(err)=>{ console.warn('Trial status listener error', err); });
     premiumWatchRef=firebaseDbRef.ref('users/'+uid+'/premiumUntil');
     premiumWatchRef.on('value',(snap)=>{
       S.premiumUntil = snap.exists() ? (Number(snap.val())||0) : 0;
@@ -726,15 +772,25 @@ function formatSubDate(ts){
   }catch(e){ return '–'; }
 }
 
+// A subscription counts as the free trial (rather than a paid plan) if it
+// was granted via trialGrantedAt and hasn't been extended past the trial
+// window by an admin upgrade/purchase.
+function isTrialSubscription(){
+  if(!S.trialGrantedAt || typeof S.premiumUntil!=='number') return false;
+  const trialEnd=S.trialGrantedAt+TRIAL_DAYS*24*60*60*1000;
+  return S.premiumUntil<=trialEnd+60000; // small buffer for clock skew
+}
+
 function updateSubscriptionUI(){
   let text;
   if(S.premiumUntil===null) text='–';
-  else if(isSubscriptionActive()) text='PRO';
+  else if(isSubscriptionActive()) text=isTrialSubscription()?'PRO (Trial)':'PRO';
   else text='FREE';
   const pill=$('creditCountText'); if(pill) pill.textContent=text;
   const hero=$('creditHeroNum'); if(hero) hero.textContent=text;
   const heroAcc=$('creditHeroNumAcc'); if(heroAcc) heroAcc.textContent=text;
-  const subLine = isSubscriptionActive() ? `Aktif sampai ${formatSubDate(S.premiumUntil)}`
+  const subLine = isSubscriptionActive()
+    ? `${isTrialSubscription()?'Trial gratis aktif':'Aktif'} sampai ${formatSubDate(S.premiumUntil)}`
     : (S.premiumUntil===null ? '' : 'Belum berlangganan');
   const shLeft=$('shCreditsLeft'); if(shLeft) shLeft.textContent = subLine ? `(${subLine})` : '';
 }
