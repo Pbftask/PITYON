@@ -195,6 +195,18 @@
   #stage-stats-bar b{color:var(--text-faint);font-weight:600;}
   #stage-stats-bar em{color:var(--text);font-style:normal;font-weight:700;margin-left:3px;}
 
+  #video-scrub-bar{
+    position:absolute;left:10px;right:10px;bottom:calc(100px + var(--safe-b));
+    display:flex;align-items:center;gap:8px;z-index:9;
+    background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);
+    padding:6px 8px;border-radius:99px;
+  }
+  #video-scrub-bar .icon-btn{width:30px;height:30px;min-width:30px;background:rgba(255,255,255,0.08);border-color:transparent;}
+  #video-scrub-bar .icon-btn svg{width:15px;height:15px;}
+  #video-scrub-bar input[type=range]{flex:1 1 auto;height:26px;}
+  #video-scrub-bar input[type=range]::-webkit-slider-thumb{width:16px;height:16px;margin-top:-6px;border-width:2px;}
+  #video-scrub-bar #video-time{font-size:10px;color:var(--text-dim);white-space:nowrap;}
+
   .spinner-overlay{
     position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:15;
     background:rgba(11,11,14,0.35);
@@ -287,6 +299,7 @@
   }
   .chip svg{width:13px;height:13px;}
   .chip.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  .fmt-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
   .chip:active{transform:scale(.95);}
 
   .slider-item{margin-bottom:16px;}
@@ -395,7 +408,7 @@
     </svg>
     <div class="brand-text">
       <span class="name">Spiralist</span>
-      <span class="tag mono">photo → spiral art</span>
+      <span class="tag mono" id="brand-tag">photo → spiral art</span>
     </div>
   </div>
   <div class="head-actions">
@@ -419,12 +432,16 @@
         <circle cx="17" cy="19" r="3.4"/>
         <path d="M6 32l10-10 8 8 6-6 12 12"/>
       </svg>
-      <h2>Ubah foto jadi seni spiral</h2>
-      <p>Unggah foto dari galeri atau ambil langsung dari kamera. Semua diproses lokal di perangkatmu — foto tidak pernah diunggah ke server.</p>
+      <h2>Ubah foto atau video jadi seni spiral</h2>
+      <p>Unggah foto atau video dari galeri, atau ambil foto langsung dari kamera. Semua diproses lokal di perangkatmu — file tidak pernah diunggah ke server.</p>
       <div class="upload-btn-row">
         <button class="btn primary" id="btn-pick-gallery">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9"/><path d="m3 15 5-5 4 4 5-5 4 4"/><circle cx="8" cy="8" r="1.3"/></svg>
           Upload Foto
+        </button>
+        <button class="btn ghost" id="btn-pick-video">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2.5"/><path d="m17 10 5-3v10l-5-3"/></svg>
+          Upload Video
         </button>
         <button class="btn ghost" id="btn-pick-camera">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -446,6 +463,15 @@
         </div>
       </div>
       <div class="spinner-overlay" id="spinner"><div class="spinner"></div></div>
+    </div>
+
+    <div id="video-scrub-bar" class="hidden">
+      <button class="icon-btn" id="btn-preview-playpause" title="Putar/Jeda pratinjau">
+        <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none;"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+      </button>
+      <input type="range" id="video-scrub" min="0" max="1000" value="0" step="1">
+      <span class="mono" id="video-time">0:00 / 0:00</span>
     </div>
 
     <div id="side-actions-left" class="hidden">
@@ -526,7 +552,7 @@
           </button>
           <button class="btn ghost" id="btn-change-photo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
-            Ganti Foto
+            <span id="btn-change-photo-label">Ganti Foto</span>
           </button>
           <button class="btn ghost" id="btn-fullscreen-panel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
@@ -539,20 +565,57 @@
     <details class="section" open>
       <summary>Export <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
       <div class="section-body">
-        <div class="export-fmt-row">
-          <button class="btn ghost fmt-btn active" data-fmt="png">PNG</button>
-          <button class="btn ghost fmt-btn" data-fmt="jpeg">JPG</button>
-          <button class="btn ghost fmt-btn" data-fmt="webp">WebP</button>
+        <div id="export-image-block">
+          <div class="export-fmt-row">
+            <button class="btn ghost fmt-btn active" data-fmt="png">PNG</button>
+            <button class="btn ghost fmt-btn" data-fmt="jpeg">JPG</button>
+            <button class="btn ghost fmt-btn" data-fmt="webp">WebP</button>
+          </div>
+          <div class="slider-item" id="quality-row">
+            <div class="slider-label"><span>Kualitas</span><span class="val" id="val-quality">90%</span></div>
+            <input type="range" id="in-quality" min="10" max="100" value="90" step="1">
+          </div>
+          <button class="btn primary" id="btn-export" style="width:100%;justify-content:center;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            Simpan Gambar
+          </button>
+          <div class="file-name-preview mono" id="export-name">spiral-art.png</div>
         </div>
-        <div class="slider-item" id="quality-row">
-          <div class="slider-label"><span>Kualitas</span><span class="val" id="val-quality">90%</span></div>
-          <input type="range" id="in-quality" min="10" max="100" value="90" step="1">
+
+        <div id="export-video-block" class="hidden">
+          <div class="slider-label" style="margin-bottom:7px;"><span>Format</span></div>
+          <div class="export-fmt-row" id="video-format-row">
+            <button class="btn ghost fmt-btn active" data-format="webm">WebM</button>
+            <button class="btn ghost fmt-btn" data-format="mp4">MP4</button>
+          </div>
+          <div class="slider-label" style="margin-bottom:7px;"><span>Resolusi</span></div>
+          <div class="export-fmt-row" id="video-res-row">
+            <button class="btn ghost fmt-btn active" data-res="480">Standar</button>
+            <button class="btn ghost fmt-btn" data-res="720">HD</button>
+          </div>
+          <div class="slider-label" style="margin-bottom:7px;"><span>Frame Rate</span></div>
+          <div class="export-fmt-row" id="video-fps-row">
+            <button class="btn ghost fmt-btn active" data-fps="24">24 fps</button>
+            <button class="btn ghost fmt-btn" data-fps="30">30 fps</button>
+          </div>
+          <div class="toggle-row" style="padding-top:0;">
+            <span class="lbl">Sertakan Audio Asli</span>
+            <div class="switch on" id="switch-audio"><div class="dot"></div></div>
+          </div>
+          <div class="file-name-preview mono" id="video-export-note" style="margin-top:10px;margin-bottom:2px;">Diproses secara real-time — durasi proses ≈ durasi video. MP4 butuh langkah konversi tambahan di sebagian besar browser.</div>
+          <button class="btn primary" id="btn-export-video" style="width:100%;justify-content:center;margin-top:8px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            Proses &amp; Unduh Video
+          </button>
+          <div id="video-export-progress-wrap" class="hidden" style="margin-top:12px;">
+            <div class="slider-label"><span id="video-export-status">Memproses…</span><span class="val" id="video-export-pct">0%</span></div>
+            <div style="height:6px;border-radius:99px;background:var(--surface-3);overflow:hidden;">
+              <div id="video-export-bar" style="height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .1s linear;"></div>
+            </div>
+            <button class="btn ghost small" id="btn-export-video-cancel" style="width:100%;justify-content:center;margin-top:10px;">Batal</button>
+          </div>
+          <div class="file-name-preview mono" id="export-video-name">spiral-video.webm</div>
         </div>
-        <button class="btn primary" id="btn-export" style="width:100%;justify-content:center;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-          Simpan Gambar
-        </button>
-        <div class="file-name-preview mono" id="export-name">spiral-art.png</div>
       </div>
     </details>
   </div>
@@ -560,6 +623,7 @@
 
 <input type="file" id="file-gallery" accept="image/jpeg,image/png,image/webp" class="hidden">
 <input type="file" id="file-camera" accept="image/*" capture="environment" class="hidden">
+<input type="file" id="file-video-gallery" accept="video/*" class="hidden">
 
 <script>
 (function(){
@@ -596,6 +660,27 @@ let previewW = 0, previewH = 0; // internal canvas res for preview
 let zoom = 1, panX = 0, panY = 0;
 let baSplit = 50; // before/after percentage
 
+/* ---- video mode ---- */
+let mediaType = 'image';       // 'image' | 'video'
+let videoEl = null;             // HTMLVideoElement (source, hidden)
+let videoObjectUrl = null;
+let videoDuration = 0;
+let videoPreviewLoopRunning = false;
+let videoPreviewPlaying = false;
+let lastPreviewFrameT = 0;
+const PREVIEW_FRAME_INTERVAL = 1000/18; // throttle preview redraw to ~18fps for perf
+
+let exportState = {
+  running:false,
+  cancelled:false,
+  resolution:480,
+  fps:24,
+  includeAudio:true,
+  format:'webm'
+};
+let exportRecorder = null, exportChunks = [], exportCanvas = null, exportCtx = null;
+let ffmpegInstance = null, ffmpegLoadingPromise = null;
+
 const $ = (id)=>document.getElementById(id);
 
 const els = {
@@ -621,6 +706,16 @@ const els = {
   statOutput: $('stat-output'),
   statZoom: $('stat-zoom'),
   panelPreview: $('panel-preview-canvas'),
+  brandTag: $('brand-tag'),
+  scrubBar: $('video-scrub-bar'),
+  scrubInput: $('video-scrub'),
+  scrubTime: $('video-time'),
+  btnPreviewPlayPause: $('btn-preview-playpause'),
+  iconPlay: $('icon-play'),
+  iconPause: $('icon-pause'),
+  changePhotoLabel: $('btn-change-photo-label'),
+  exportImageBlock: $('export-image-block'),
+  exportVideoBlock: $('export-video-block'),
 };
 const ctxPanelPreview = els.panelPreview.getContext('2d');
 const ctxBefore = els.before.getContext('2d');
@@ -640,6 +735,9 @@ const ICON_TIGHT = svgIcon('<circle cx="12" cy="12" r="2"/><circle cx="12" cy="1
 const ICON_LOOSE = svgIcon('<circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="10"/>');
 const ICON_BW = svgIcon('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 3v18"/>');
 const ICON_INV = svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" stroke="none"/>');
+const ICON_VLINES = svgIcon('<path d="M5 3v18M10 3v18M14 3v18M19 3v18"/>');
+const ICON_HLINES = svgIcon('<path d="M3 5h18M3 10h18M3 14h18M3 19h18"/>');
+const ICON_GRID = svgIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>');
 
 const MODES = [
   {id:'spiral', label:'Spiral', icon:ICON_SPIRAL},
@@ -648,6 +746,9 @@ const MODES = [
   {id:'wave-spiral', label:'Wave Spiral', icon:ICON_WAVE},
   {id:'tight-spiral', label:'Tight Spiral', icon:ICON_TIGHT},
   {id:'loose-spiral', label:'Loose Spiral', icon:ICON_LOOSE},
+  {id:'lines-v', label:'Garis Vertikal', icon:ICON_VLINES},
+  {id:'lines-h', label:'Garis Horizontal', icon:ICON_HLINES},
+  {id:'grid', label:'Kotak / Grid', icon:ICON_GRID},
   {id:'bw', label:'Black & White', icon:ICON_BW},
   {id:'inverted', label:'Inverted', icon:ICON_INV},
 ];
@@ -836,13 +937,17 @@ $('panel-drag').addEventListener('click', ()=> setPanelOpen(false));
 })();
 
 /* ============================================================
-   IMAGE LOADING
+   MEDIA LOADING (image + video)
 ============================================================ */
 $('btn-pick-gallery').addEventListener('click', ()=> $('file-gallery').click());
+$('btn-pick-video').addEventListener('click', ()=> $('file-video-gallery').click());
 $('btn-pick-camera').addEventListener('click', ()=> $('file-camera').click());
-$('btn-change-photo').addEventListener('click', ()=> $('file-gallery').click());
+$('btn-change-photo').addEventListener('click', ()=>{
+  (mediaType==='video' ? $('file-video-gallery') : $('file-gallery')).click();
+});
 $('file-gallery').addEventListener('change', e=> handleFile(e.target.files[0]));
 $('file-camera').addEventListener('change', e=> handleFile(e.target.files[0]));
+$('file-video-gallery').addEventListener('change', e=> handleFile(e.target.files[0]));
 
 els.stageWrap.addEventListener('dragover', e=>{ e.preventDefault(); els.stageWrap.classList.add('dragover'); });
 els.stageWrap.addEventListener('dragleave', ()=> els.stageWrap.classList.remove('dragover'));
@@ -853,7 +958,13 @@ els.stageWrap.addEventListener('drop', e=>{
 });
 
 function handleFile(file){
-  if(!file || !file.type.startsWith('image/')) return;
+  if(!file) return;
+  if(file.type.startsWith('video/')) return handleVideoFile(file);
+  if(file.type.startsWith('image/')) return handleImageFile(file);
+}
+
+function handleImageFile(file){
+  stopVideoPreviewLoop();
   showSpinner(true);
   const reader = new FileReader();
   reader.onload = (ev)=>{
@@ -870,6 +981,9 @@ function handleFile(file){
 }
 
 function onImageReady(){
+  mediaType = 'image';
+  if(videoEl){ videoEl.pause(); videoEl.src=''; videoEl=null; }
+  if(videoObjectUrl){ URL.revokeObjectURL(videoObjectUrl); videoObjectUrl=null; }
   els.emptyState.style.display = 'none';
   els.canvasStage.classList.add('show');
   els.panel.classList.add('show');
@@ -878,6 +992,11 @@ function onImageReady(){
   els.statsBar.classList.remove('hidden');
   els.btnSettings.classList.remove('hidden');
   $('btn-fullscreen').classList.remove('hidden');
+  els.scrubBar.classList.add('hidden');
+  els.changePhotoLabel.textContent = 'Ganti Foto';
+  els.brandTag.textContent = 'photo → spiral art';
+  els.exportImageBlock.classList.remove('hidden');
+  els.exportVideoBlock.classList.add('hidden');
   els.statOriginal.textContent = naturalW+'×'+naturalH;
 
   // build preview-res luminance buffer
@@ -905,11 +1024,148 @@ function onImageReady(){
   showSpinner(false);
 }
 
+/* ---------------- VIDEO ---------------- */
+function handleVideoFile(file){
+  showSpinner(true);
+  stopVideoPreviewLoop();
+  if(videoObjectUrl){ URL.revokeObjectURL(videoObjectUrl); videoObjectUrl=null; }
+  const url = URL.createObjectURL(file);
+  videoObjectUrl = url;
+  const v = document.createElement('video');
+  v.src = url;
+  v.muted = true;
+  v.playsInline = true;
+  v.loop = true;
+  v.crossOrigin = 'anonymous';
+  v.addEventListener('loadedmetadata', ()=>{
+    videoEl = v;
+    naturalW = v.videoWidth;
+    naturalH = v.videoHeight;
+    videoDuration = v.duration || 0;
+    onVideoReady();
+  }, {once:true});
+  v.addEventListener('error', ()=>{
+    showSpinner(false);
+    alert('Video tidak dapat dibuka. Coba format lain (mp4/webm).');
+  }, {once:true});
+}
+
+function onVideoReady(){
+  mediaType = 'video';
+  img = null; // spiral image mode not active
+
+  els.emptyState.style.display = 'none';
+  els.canvasStage.classList.add('show');
+  els.panel.classList.add('show');
+  els.sideLeft.classList.remove('hidden');
+  els.sideRight.classList.remove('hidden');
+  els.statsBar.classList.remove('hidden');
+  els.btnSettings.classList.remove('hidden');
+  $('btn-fullscreen').classList.remove('hidden');
+  els.scrubBar.classList.remove('hidden');
+  els.changePhotoLabel.textContent = 'Ganti Video';
+  els.brandTag.textContent = 'video → spiral art';
+  els.exportImageBlock.classList.add('hidden');
+  els.exportVideoBlock.classList.remove('hidden');
+  els.statOriginal.textContent = naturalW+'×'+naturalH;
+
+  // lower preview res than image mode: video re-samples luminance every frame
+  const maxDim = 480;
+  const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
+  previewW = Math.max(1, Math.round(naturalW*scale));
+  previewH = Math.max(1, Math.round(naturalH*scale));
+  els.statOutput.textContent = previewW+'×'+previewH;
+  els.panelPreview.width = previewW;
+  els.panelPreview.height = previewH;
+
+  [els.before, els.after].forEach(c=>{ c.width = previewW; c.height = previewH; });
+
+  updateDisplaySize();
+  fitToScreen();
+  state = Object.assign({}, DEFAULTS);
+  refreshAllControls();
+  history = []; historyIdx=-1;
+  pushHistory();
+
+  els.scrubInput.value = 0;
+  updateVideoTimeLabel();
+
+  videoPreviewPlaying = true;
+  syncPreviewPlayIcon();
+  videoEl.currentTime = 0;
+  videoEl.play().catch(()=>{ videoPreviewPlaying=false; syncPreviewPlayIcon(); });
+  startVideoPreviewLoop();
+  showSpinner(false);
+}
+
+/* continuously redraw canvas-before/after from the live video element */
+function startVideoPreviewLoop(){
+  if(videoPreviewLoopRunning) return;
+  videoPreviewLoopRunning = true;
+  lastPreviewFrameT = 0;
+  function loop(t){
+    if(!videoPreviewLoopRunning) return;
+    if(mediaType==='video' && videoEl && !exportState.running){
+      if(t - lastPreviewFrameT >= PREVIEW_FRAME_INTERVAL){
+        lastPreviewFrameT = t;
+        renderVideoFrame();
+        if(videoPreviewPlaying && videoDuration>0){
+          els.scrubInput.value = Math.round((videoEl.currentTime/videoDuration)*1000);
+          updateVideoTimeLabel();
+        }
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+function stopVideoPreviewLoop(){
+  videoPreviewLoopRunning = false;
+}
+
+function renderVideoFrame(){
+  if(!videoEl || !previewW) return;
+  ctxBefore.drawImage(videoEl, 0, 0, previewW, previewH);
+  lumPreview = buildLumBuffer(videoEl, previewW, previewH);
+  render(ctxAfter, previewW, previewH, lumPreview);
+  ctxPanelPreview.clearRect(0,0,previewW,previewH);
+  ctxPanelPreview.drawImage(els.after, 0, 0);
+}
+
+function updateVideoTimeLabel(){
+  if(!videoEl) return;
+  const fmt = s=>{ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+  els.scrubTime.textContent = fmt(videoEl.currentTime)+' / '+fmt(videoDuration);
+}
+
+function syncPreviewPlayIcon(){
+  els.iconPlay.style.display = videoPreviewPlaying ? 'none':'block';
+  els.iconPause.style.display = videoPreviewPlaying ? 'block':'none';
+}
+
+els.btnPreviewPlayPause.addEventListener('click', ()=>{
+  if(!videoEl) return;
+  videoPreviewPlaying = !videoPreviewPlaying;
+  if(videoPreviewPlaying) videoEl.play().catch(()=>{}); else videoEl.pause();
+  syncPreviewPlayIcon();
+});
+
+els.scrubInput.addEventListener('input', ()=>{
+  if(!videoEl || !videoDuration) return;
+  videoPreviewPlaying = false;
+  videoEl.pause();
+  syncPreviewPlayIcon();
+  videoEl.currentTime = (els.scrubInput.value/1000)*videoDuration;
+  updateVideoTimeLabel();
+  // draw the exact scrubbed frame once it's seeked
+  videoEl.addEventListener('seeked', renderVideoFrame, {once:true});
+});
+
 /* Compute the exact on-screen box for the canvases so they always
    letterbox correctly inside the stage, and stay correct across
    window resize, orientation change, and fullscreen toggles. */
 function updateDisplaySize(){
-  if(!img || !previewW) return;
+  if((!img && !videoEl) || !previewW) return;
   const padding = 28;
   const availW = Math.max(60, els.stageWrap.clientWidth - padding);
   const availH = Math.max(60, els.stageWrap.clientHeight - padding);
@@ -964,6 +1220,13 @@ function sampleLum(buf, nx, ny){
 ============================================================ */
 let rafPending = false;
 function scheduleRender(immediate){
+  if(mediaType==='video'){
+    // the preview loop redraws continuously while playing; if paused,
+    // force one immediate redraw of the current frame so slider tweaks
+    // are reflected right away.
+    if(!videoPreviewPlaying) renderVideoFrame();
+    return;
+  }
   if(!img) return;
   if(rafPending) return;
   rafPending = true;
@@ -1019,6 +1282,12 @@ function render(ctx, W, H, buf){
     case 'wave-spiral': drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,{wave:1, spacingMult:1}); break;
     case 'tight-spiral': drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,{wave:0, spacingMult:0.45}); break;
     case 'loose-spiral': drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,{wave:0, spacingMult:2.0}); break;
+    case 'lines-v': drawLines(ctx,W,H,buf,st,cx,cy,'v'); break;
+    case 'lines-h': drawLines(ctx,W,H,buf,st,cx,cy,'h'); break;
+    case 'grid':
+      drawLines(ctx,W,H,buf,st,cx,cy,'v');
+      drawLines(ctx,W,H,buf,st,cx,cy,'h');
+      break;
     case 'spiral':
     default: drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,{wave:0, spacingMult:1}); break;
   }
@@ -1160,6 +1429,69 @@ function drawRings(ctx,W,H,buf,st,cx,cy,minDim,dashed){
   }
 }
 
+/* Straight parallel line-art (vertical / horizontal), rotatable via
+   st.rotation so it can also produce diagonal hatching. Line width
+   at every point varies with local darkness, same as the spiral modes. */
+function drawLines(ctx,W,H,buf,st,cx,cy,orientation){
+  const count = Math.max(3, Math.round(st.amount/4));
+  const spreadAxisLen = orientation==='v' ? W : H;
+  const gap = Math.max(2, (spreadAxisLen/count) * (st.spacing/100) * ((st.size||100)/100));
+  const rot = (st.rotation/180)*Math.PI;
+  const thicknessBase = st.thickness;
+  const smooth = st.smoothness/100;
+  const segPerLine = Math.max(30, Math.min(500, Math.round(120*(st.detail/100))));
+  const diag = Math.sqrt(W*W+H*H);
+
+  // base direction (along the line) and spread (perpendicular, between lines)
+  let dirX, dirY, spreadX, spreadY;
+  if(orientation==='v'){ dirX=0; dirY=1; spreadX=1; spreadY=0; }
+  else { dirX=1; dirY=0; spreadX=0; spreadY=1; }
+  const rdx = dirX*Math.cos(rot) - dirY*Math.sin(rot);
+  const rdy = dirX*Math.sin(rot) + dirY*Math.cos(rot);
+  const rsx = spreadX*Math.cos(rot) - spreadY*Math.sin(rot);
+  const rsy = spreadX*Math.sin(rot) + spreadY*Math.cos(rot);
+
+  const numLines = Math.ceil(diag/gap)+2;
+  const startOffset = -Math.floor(numLines/2)*gap;
+
+  for(let li=0; li<numLines; li++){
+    const offset = startOffset + li*gap;
+    const baseX = cx + rsx*offset;
+    const baseY = cy + rsy*offset;
+    let pathStarted=false, prevX=null, prevY=null;
+    for(let i=0;i<=segPerLine;i++){
+      const t = (i/segPerLine - 0.5) * diag;
+      const x = baseX + rdx*t;
+      const y = baseY + rdy*t;
+      const nx=x/W, ny=y/H;
+      let dark=0;
+      if(nx>=0&&nx<=1&&ny>=0&&ny<=1) dark = darknessAt(nx,ny,buf,st);
+      const lw = thicknessBase*(0.1+dark*1.9);
+
+      if(prevX!==null){
+        if(lw < thicknessBase*0.14){
+          if(pathStarted){ ctx.stroke(); ctx.beginPath(); pathStarted=false; }
+        } else {
+          ctx.lineWidth = lw;
+          if(!pathStarted){ ctx.beginPath(); ctx.moveTo(prevX,prevY); pathStarted=true; }
+          if(smooth>0.05){
+            const mx=(prevX+x)/2, my=(prevY+y)/2;
+            ctx.quadraticCurveTo(prevX,prevY,mx,my);
+          } else {
+            ctx.lineTo(x,y);
+          }
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(x,y);
+          pathStarted=true;
+        }
+      }
+      prevX=x; prevY=y;
+    }
+    if(pathStarted) ctx.stroke();
+  }
+}
+
 /* ============================================================
    BEFORE / AFTER SLIDER
 ============================================================ */
@@ -1177,7 +1509,7 @@ function baPointerX(clientX){
   return ((clientX-rect.left)/rect.width)*100;
 }
 function startBaDrag(e){
-  if(!img) return;
+  if(!img && !videoEl) return;
   baDragging = true;
   setSplit(baPointerX(e.clientX));
 }
@@ -1220,7 +1552,7 @@ $('btn-zoom-in').addEventListener('click', ()=>{ zoom = Math.min(4, zoom*1.25); 
 $('btn-zoom-out').addEventListener('click', ()=>{ zoom = Math.max(0.4, zoom/1.25); applyTransform(); });
 
 els.stageWrap.addEventListener('wheel', e=>{
-  if(!img) return;
+  if(!img && !videoEl) return;
   e.preventDefault();
   const delta = e.deltaY>0? 0.92:1.08;
   zoom = Math.max(0.4, Math.min(4, zoom*delta));
@@ -1299,9 +1631,9 @@ $('btn-random').addEventListener('click', ()=>{
    EXPORT
 ============================================================ */
 let exportFmt = 'png';
-document.querySelectorAll('.fmt-btn').forEach(btn=>{
+document.querySelectorAll('.fmt-btn[data-fmt]').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.fmt-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.fmt-btn[data-fmt]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     exportFmt = btn.dataset.fmt;
     $('quality-row').style.display = exportFmt==='png' ? 'none' : 'block';
@@ -1342,6 +1674,283 @@ $('btn-export').addEventListener('click', ()=>{
     }, mime, exportFmt==='png'? undefined : quality);
   }, 30);
 });
+
+/* ============================================================
+   VIDEO EXPORT (renders every frame with the spiral effect and
+   records the result back into a downloadable video file)
+============================================================ */
+document.querySelectorAll('#video-format-row .fmt-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#video-format-row .fmt-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    exportState.format = btn.dataset.format;
+  });
+});
+document.querySelectorAll('#video-res-row .fmt-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#video-res-row .fmt-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    exportState.resolution = parseInt(btn.dataset.res,10);
+  });
+});
+document.querySelectorAll('#video-fps-row .fmt-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#video-fps-row .fmt-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    exportState.fps = parseInt(btn.dataset.fps,10);
+  });
+});
+$('switch-audio').addEventListener('click', ()=>{
+  exportState.includeAudio = !exportState.includeAudio;
+  $('switch-audio').classList.toggle('on', exportState.includeAudio);
+});
+
+function pickVideoMime(preferMp4){
+  const webmCandidates = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm'
+  ];
+  const mp4Candidates = [
+    'video/mp4;codecs=avc1,mp4a.40.2',
+    'video/mp4'
+  ];
+  const candidates = preferMp4 ? mp4Candidates.concat(webmCandidates) : webmCandidates.concat(mp4Candidates);
+  for(const c of candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return '';
+}
+
+/* Most browsers (Chrome/Firefox/Edge) can only record MediaRecorder
+   output as WebM. To offer a real MP4 download there, we lazy-load
+   ffmpeg.wasm (single-thread build — no COOP/COEP headers required)
+   from a CDN and transcode the recorded WebM to MP4 entirely in the
+   browser, only when the user actually picks MP4 and the browser
+   couldn't record MP4 natively. */
+function loadFFmpegScript(){
+  return new Promise((resolve,reject)=>{
+    if(window.FFmpeg){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
+    s.onload = ()=>resolve();
+    s.onerror = ()=>reject(new Error('gagal memuat pustaka konversi MP4 (perlu koneksi internet)'));
+    document.head.appendChild(s);
+  });
+}
+async function getFFmpeg(){
+  if(ffmpegInstance) return ffmpegInstance;
+  if(!ffmpegLoadingPromise){
+    ffmpegLoadingPromise = (async ()=>{
+      await loadFFmpegScript();
+      const { createFFmpeg } = window.FFmpeg;
+      const inst = createFFmpeg({
+        log:false,
+        corePath:'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
+      });
+      await inst.load();
+      ffmpegInstance = inst;
+      return inst;
+    })();
+  }
+  return ffmpegLoadingPromise;
+}
+async function convertWebmToMp4(webmBlob, onProgress){
+  const ffmpeg = await getFFmpeg();
+  const { fetchFile } = window.FFmpeg;
+  ffmpeg.setProgress(({ratio})=>{
+    if(onProgress && ratio>=0 && ratio<=1) onProgress(ratio);
+  });
+  ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
+  await ffmpeg.run(
+    '-i','input.webm',
+    '-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p',
+    '-c:a','aac','-b:a','160k',
+    'output.mp4'
+  );
+  const data = ffmpeg.FS('readFile','output.mp4');
+  try{ ffmpeg.FS('unlink','input.webm'); ffmpeg.FS('unlink','output.mp4'); }catch(e){}
+  return new Blob([data.buffer], {type:'video/mp4'});
+}
+
+function setExportUI(running){
+  $('btn-export-video').classList.toggle('hidden', running);
+  $('video-export-progress-wrap').classList.toggle('hidden', !running);
+  els.btnPreviewPlayPause.disabled = running;
+  els.scrubInput.disabled = running;
+}
+function setExportProgress(pct, statusText){
+  $('video-export-bar').style.width = Math.round(pct*100)+'%';
+  $('video-export-pct').textContent = Math.round(pct*100)+'%';
+  if(statusText) $('video-export-status').textContent = statusText;
+}
+
+$('btn-export-video').addEventListener('click', startVideoExport);
+$('btn-export-video-cancel').addEventListener('click', ()=>{
+  exportState.cancelled = true;
+});
+
+function startVideoExport(){
+  if(!videoEl || exportState.running) return;
+  if(!window.MediaRecorder){
+    alert('Perekaman video tidak didukung di browser ini.');
+    return;
+  }
+  const mimeType = pickVideoMime(exportState.format==='mp4');
+  if(!mimeType){
+    alert('Browser ini tidak mendukung format perekaman video yang tersedia.');
+    return;
+  }
+
+  exportState.running = true;
+  exportState.cancelled = false;
+  setExportUI(true);
+  setExportProgress(0, 'Menyiapkan…');
+
+  // stop live preview loop & pause playback while we drive the video manually
+  videoPreviewPlaying = false;
+  syncPreviewPlayIcon();
+  videoEl.pause();
+
+  const scale = Math.min(1, exportState.resolution / Math.max(naturalW, naturalH));
+  const ew = Math.max(2, Math.round(naturalW*scale/2)*2);
+  const eh = Math.max(2, Math.round(naturalH*scale/2)*2);
+
+  exportCanvas = document.createElement('canvas');
+  exportCanvas.width = ew; exportCanvas.height = eh;
+  exportCtx = exportCanvas.getContext('2d');
+
+  const finish = (success)=>{
+    exportState.running = false;
+    setExportUI(false);
+    setExportProgress(0);
+    videoEl.currentTime = 0;
+    videoPreviewPlaying = true;
+    videoEl.play().catch(()=>{ videoPreviewPlaying=false; syncPreviewPlayIcon(); });
+    syncPreviewPlayIcon();
+    if(!success) showSpinner(false);
+  };
+
+  const onSeekedToStart = ()=>{
+    videoEl.removeEventListener('seeked', onSeekedToStart);
+
+    let tracks = [];
+    try{
+      const canvasStream = exportCanvas.captureStream(exportState.fps);
+      tracks = tracks.concat(canvasStream.getVideoTracks());
+    } catch(err){
+      alert('Gagal membuat aliran video untuk direkam.');
+      finish(false);
+      return;
+    }
+    if(exportState.includeAudio){
+      try{
+        const vidStream = videoEl.captureStream ? videoEl.captureStream() : (videoEl.mozCaptureStream ? videoEl.mozCaptureStream() : null);
+        if(vidStream) tracks = tracks.concat(vidStream.getAudioTracks());
+      } catch(err){ /* no audio track available, continue without it */ }
+    }
+
+    const outStream = new MediaStream(tracks);
+    let recorder;
+    try{
+      recorder = new MediaRecorder(outStream, {mimeType, videoBitsPerSecond: 6000000});
+    } catch(err){
+      alert('Gagal memulai perekaman video: '+err.message);
+      finish(false);
+      return;
+    }
+    exportRecorder = recorder;
+    exportChunks = [];
+    recorder.ondataavailable = e=>{ if(e.data && e.data.size) exportChunks.push(e.data); };
+
+    recorder.onstop = async ()=>{
+      if(exportState.cancelled || exportChunks.length===0){
+        finish(false);
+        return;
+      }
+      const recordedMime = mimeType.split(';')[0];
+      const rawBlob = new Blob(exportChunks, {type:recordedMime});
+
+      const downloadBlob = (blob, ext)=>{
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'spiral-video.'+ext;
+        $('export-video-name').textContent = 'spiral-video.'+ext;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      };
+
+      // Safari etc. can record MP4 natively — nothing else to do
+      if(recordedMime.indexOf('mp4')>=0){
+        downloadBlob(rawBlob, 'mp4');
+        finish(true);
+        return;
+      }
+
+      // user wants MP4 but the browser only gave us WebM — convert it
+      if(exportState.format==='mp4'){
+        setExportProgress(0, 'Mengonversi ke MP4…');
+        try{
+          const mp4Blob = await convertWebmToMp4(rawBlob, (ratio)=>{
+            setExportProgress(ratio, 'Mengonversi ke MP4…');
+          });
+          downloadBlob(mp4Blob, 'mp4');
+          finish(true);
+        } catch(err){
+          alert('Konversi ke MP4 gagal ('+err.message+'). Video diunduh sebagai WebM sebagai gantinya.');
+          downloadBlob(rawBlob, 'webm');
+          finish(true);
+        }
+        return;
+      }
+
+      downloadBlob(rawBlob, 'webm');
+      finish(true);
+    };
+
+    videoEl.muted = true; // avoid double playback through speakers; capture still gets audio samples
+    recorder.start(250);
+
+    let stopTimer = null;
+    const drawTick = ()=>{
+      if(exportState.cancelled){
+        clearTimeout(stopTimer);
+        videoEl.pause();
+        if(recorder.state!=='inactive') recorder.stop();
+        return;
+      }
+      if(videoEl.ended){
+        if(!stopTimer){
+          stopTimer = setTimeout(()=>{ if(recorder.state!=='inactive') recorder.stop(); }, 250);
+        }
+        return;
+      }
+      const buf = buildLumBuffer(videoEl, ew, eh);
+      render(exportCtx, ew, eh, buf);
+      if(videoDuration>0){
+        setExportProgress(Math.min(1, videoEl.currentTime/videoDuration), 'Memproses…');
+      }
+      requestAnimationFrame(drawTick);
+    };
+
+    videoEl.play().then(()=>{
+      requestAnimationFrame(drawTick);
+    }).catch(err=>{
+      alert('Gagal memutar video untuk direkam: '+err.message);
+      if(recorder.state!=='inactive') recorder.stop();
+    });
+  };
+
+  if(Math.abs(videoEl.currentTime) < 0.01){
+    onSeekedToStart();
+  } else {
+    videoEl.addEventListener('seeked', onSeekedToStart);
+    videoEl.currentTime = 0;
+  }
+}
 
 /* ============================================================
    MISC
