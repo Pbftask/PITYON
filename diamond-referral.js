@@ -224,7 +224,7 @@ ready(function(){
      ------------------------------------------------------------------ */
   async function redeemInviteCode(){
     const uid=B.getUid();
-    if(!uid){ B.toast('Login dulu untuk melanjutkan.'); return; }
+    if(!uid){ B.requireLogin('Login untuk melanjutkan.'); return; }
     const raw = ((redeemInput && redeemInput.value) || '').trim().toUpperCase();
     if(!raw){ setRedeemStatus('Masukkan kode undangan terlebih dahulu.','error'); return; }
     if(myData && myData.inviteCode && raw===myData.inviteCode){
@@ -363,7 +363,7 @@ ready(function(){
      ------------------------------------------------------------------ */
   if(btnRedeemPro) btnRedeemPro.addEventListener('click', async ()=>{
     const uid=B.getUid();
-    if(!uid){ B.toast('Login dulu untuk melanjutkan.'); return; }
+    if(!uid){ B.requireLogin('Login untuk melanjutkan.'); return; }
     const database=db(); if(!database){ B.toast('Database belum siap.'); return; }
     if((myData && myData.diamonds||0) < REWARD.proCostDiamond){
       B.toast(`Diamond kamu belum cukup (butuh ${REWARD.proCostDiamond}).`); return;

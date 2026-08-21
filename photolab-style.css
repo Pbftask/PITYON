@@ -187,6 +187,12 @@ nav.app-nav{
 .app-nav-btn:active{transform:scale(0.92);}
 .app-nav-btn.active{color:var(--accent);background:var(--accent-dim);}
 .app-nav-btn.active svg{transform:translateY(-1px);}
+.app-nav-btn.nav-needs-login{position:relative;}
+.app-nav-btn.nav-needs-login::after{
+  content:'';position:absolute;top:4px;right:calc(50% - 16px);
+  width:7px;height:7px;border-radius:50%;
+  background:var(--accent);border:1.5px solid var(--bg);
+}
 
 /* ---------------- PROJECT PAGE ---------------- */
 .project-empty{
@@ -291,6 +297,15 @@ main.stage{
 }
 .empty-state h2{font-size:19px;margin:2px 0 0;letter-spacing:-0.01em;}
 .empty-state p{font-size:13.5px;color:var(--text-dim);margin:0;line-height:1.5;}
+.empty-state-secondary{display:flex;gap:10px;margin-top:2px;flex-wrap:wrap;justify-content:center;}
+.empty-state-secondary .btn-ghost{font-size:12.5px;padding:9px 16px;}
+.empty-state-perks{
+  list-style:none;margin:10px 0 0;padding:0;
+  display:flex;flex-direction:column;gap:6px;align-items:flex-start;
+  font-size:12px;color:var(--text-dim);
+}
+.empty-state-perks li{display:flex;align-items:center;gap:8px;}
+.empty-state-perks i{color:var(--accent);width:14px;text-align:center;}
 .btn-primary{
   margin-top:8px;padding:13px 26px;border-radius:100px;border:none;
   background:linear-gradient(180deg, var(--accent), #e69c1a);
@@ -838,6 +853,31 @@ select.select-field{
   animation:slideUp .25s cubic-bezier(.32,.72,0,1);
 }
 @media(min-width:640px){.modal-card{border-radius:22px;margin-bottom:0;}}
+
+/* ---------------- ONBOARDING (first-time tutorial) ---------------- */
+.onboarding-card{position:relative;text-align:center;padding-top:44px;}
+.onboarding-skip{
+  position:absolute;top:16px;right:18px;
+  background:none;border:none;color:var(--text-dim);
+  font-size:12.5px;font-weight:600;cursor:pointer;padding:4px;
+}
+.onboarding-skip:active{opacity:.6;}
+.onboarding-steps{min-height:150px;display:flex;align-items:center;justify-content:center;}
+.onboarding-step{display:none;flex-direction:column;align-items:center;gap:10px;animation:fadeIn .2s ease;}
+.onboarding-step.active{display:flex;}
+.onboarding-icon{
+  width:56px;height:56px;border-radius:16px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-dim);color:var(--accent);font-size:22px;
+}
+.onboarding-step h3{font-size:17px;margin:2px 0 0;}
+.onboarding-step p{font-size:13px;color:var(--text-dim);line-height:1.5;margin:0;max-width:280px;}
+.onboarding-dots{display:flex;justify-content:center;gap:6px;margin:18px 0 4px;}
+.onboarding-dot{width:6px;height:6px;border-radius:50%;background:var(--border-strong);transition:background .15s ease,width .15s ease;}
+.onboarding-dot.active{background:var(--accent);width:16px;border-radius:4px;}
+.onboarding-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;}
+.onboarding-actions .btn-primary{margin-top:0;flex:1;justify-content:center;}
+.onboarding-actions .btn-ghost{flex-shrink:0;}
 .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
 .modal-head h3{font-size:16.5px;margin:0;}
 .modal-section{margin-bottom:18px;}
@@ -960,6 +1000,7 @@ select.select-field{
 }
 .login-gate.hidden{display:none;}
 .login-card{
+  position:relative;
   width:100%;max-width:380px;
   display:flex;flex-direction:column;align-items:center;text-align:center;
   padding:36px 26px 28px;
@@ -968,6 +1009,20 @@ select.select-field{
   background:var(--glass);
   backdrop-filter:blur(20px);
 }
+/* Close button — only functional/visible when the gate was opened as an
+   on-demand prompt (.gate-dismissible). Forced states (email verification,
+   IP ban) never get a close button, matching their original behavior. */
+.auth-gate-close{
+  display:none;
+  position:absolute;top:12px;right:12px;
+  width:30px;height:30px;border-radius:10px;
+  align-items:center;justify-content:center;
+  color:var(--text-dim);background:var(--surface-2);
+  transition:opacity .15s ease,background .15s ease;
+}
+.auth-gate-close svg{width:15px;height:15px;}
+.auth-gate-close:active{opacity:.7;}
+.login-gate.gate-dismissible .auth-gate-close{display:flex;}
 .login-mark{
   width:56px;height:56px;border-radius:16px;
   display:flex;align-items:center;justify-content:center;
@@ -1011,6 +1066,22 @@ select.select-field{
 }
 .link-btn:active{opacity:0.7;}
 .auth-back{margin-top:14px;text-align:center;width:100%;}
+
+/* ---------------- CAPTCHA / EMAIL VERIFY / IP BAN (added) ---------------- */
+.captcha-wrap{display:flex;justify-content:center;margin:2px 0 4px;transform:scale(0.93);transform-origin:center;}
+.verify-icon{
+  width:56px;height:56px;border-radius:16px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-dim);color:var(--accent);
+  margin:0 auto 16px;font-size:22px;
+}
+.verify-icon.banned{background:rgba(255,80,80,0.12);color:var(--danger);}
+.verify-email-address{font-weight:700;font-size:14px;word-break:break-all;margin:0 0 4px;}
+.banned-countdown{
+  margin:14px 0 4px;padding:9px 12px;border-radius:var(--radius-sm);
+  background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.3);
+  color:var(--danger);font-size:12.5px;font-weight:700;
+}
 
 /* ---------------- TOAST ---------------- */
 #toastHost{

@@ -189,7 +189,7 @@ ready(function(){
   // double-clicks (the marker doc's existence IS the source of truth).
   async function toggleMark(kind /* 'likes'|'favorites' */, type, itemId, countField){
     const uid=B.getUid();
-    if(!uid){ B.toast('Login dulu untuk melanjutkan.'); return null; }
+    if(!uid){ B.requireLogin('Login untuk melanjutkan.'); return null; }
     const db=fs(); if(!db) return null;
     const markId=`${type}_${itemId}_${uid}`;
     const ref=db.collection(kind).doc(markId);
@@ -380,7 +380,7 @@ ready(function(){
 
   if(btnCreate){
     btnCreate.addEventListener('click', ()=>{
-      if(!B.getUid()){ B.toast('Login dulu untuk membuat konten.'); return; }
+      if(!B.getUid()){ B.requireLogin('Login untuk membuat konten.'); return; }
       if(window.PECommunity && typeof window.PECommunity.openUpload==='function'){
         window.PECommunity.openUpload(state.tab);
       }else{

@@ -31,7 +31,7 @@ ready(function(){
      1. POST — share the current edit result to the feed
      ------------------------------------------------------------------ */
   function openPostForm(){
-    if(!B.getUid()){ B.toast('Login dulu untuk membagikan hasil editanmu.'); return; }
+    if(!B.getUid()){ B.requireLogin('Login untuk membagikan hasil editanmu.'); return; }
     if(!B.state.previewCanvas){ B.toast('Pilih & edit foto dulu sebelum membagikannya.'); return; }
     openModal(`
       <div class="modal-head"><h3>Bagikan Hasil Edit</h3><button class="icon-btn" data-close>&times;</button></div>
@@ -142,7 +142,7 @@ ready(function(){
       C.incrementCounter('posts',id,'downloadCount',1);
     });
     onModal('#peFdReport','click', async ()=>{
-      if(!B.getUid()){ B.toast('Login dulu.'); return; }
+      if(!B.getUid()){ B.requireLogin('Login untuk melanjutkan.'); return; }
       const reason=prompt('Alasan report postingan ini:');
       if(!reason) return;
       try{
@@ -160,7 +160,7 @@ ready(function(){
     onModal('#peCommentInput','keydown', (e)=>{ if(e.key==='Enter') submitComment(id); });
 
     async function submitComment(postId){
-      if(!B.getUid()){ B.toast('Login dulu untuk berkomentar.'); return; }
+      if(!B.getUid()){ B.requireLogin('Login untuk berkomentar.'); return; }
       const input=modalCard.querySelector('#peCommentInput');
       const text=input.value.trim();
       if(!text) return;
@@ -251,7 +251,7 @@ ready(function(){
     const uid=B.getUid();
     // FIX: explicit login guard (equivalent to checking auth.currentUser)
     // before any Firestore read/write below.
-    if(!uid){ B.toast('Login dulu untuk follow creator.'); return null; }
+    if(!uid){ B.requireLogin('Login untuk follow creator.'); return null; }
     if(uid===targetUid){ B.toast('Tidak bisa follow diri sendiri.'); return null; }
     const db=B.getFirestore();
     const ref=db.collection('follows').doc(`${uid}_${targetUid}`);
@@ -366,7 +366,7 @@ ready(function(){
     if(editBio) editBio.addEventListener('click', async ()=>{
       // FIX: explicit login guard even though this button only renders for
       // isMe — protects against a stale session expiring mid-view.
-      if(!B.getUid()){ B.toast('Login dulu untuk mengedit bio.'); return; }
+      if(!B.getUid()){ B.requireLogin('Login untuk mengedit bio.'); return; }
       const bio=prompt('Bio baru:', prof.bio||'');
       if(bio===null) return;
       try{ await db.collection('profiles').doc(uid).set({bio}, {merge:true}); B.toast('Bio diperbarui.','success'); openProfile(uid); }
@@ -436,7 +436,7 @@ ready(function(){
       btn.addEventListener('click', async ()=>{
         // FIX: explicit login guard (this picker only renders for isMe,
         // but guard the write itself in case the session expired).
-        if(!B.getUid()){ B.toast('Login dulu.'); return; }
+        if(!B.getUid()){ B.requireLogin('Login untuk melanjutkan.'); return; }
         profilePanel.querySelectorAll('[data-wmpos]').forEach(b=>b.classList.toggle('active', b===btn));
         try{ await db.collection('profiles').doc(uid).set({watermarkPosition:btn.dataset.wmpos}, {merge:true}); }
         catch(err){ console.error(err); B.toast('Gagal menyimpan posisi watermark.'); }
@@ -457,7 +457,7 @@ ready(function(){
       btn.innerHTML='<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 20c1.5-4 4.5-6 7.5-6s6 2 7.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
       createBtn.parentElement.insertBefore(btn, createBtn);
       btn.addEventListener('click', ()=>{
-        if(!B.getUid()){ B.toast('Login dulu untuk melihat profilmu.'); return; }
+        if(!B.getUid()){ B.requireLogin('Login untuk melihat profilmu.'); return; }
         openProfile(B.getUid());
       });
     }

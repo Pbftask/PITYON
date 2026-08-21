@@ -93,7 +93,7 @@ ready(function(){
   }
 
   function openPresetForm(existing){
-    if(!B.getUid()){ B.toast('Login dulu untuk membuat preset.'); return; }
+    if(!B.getUid()){ B.requireLogin('Login untuk membuat preset.'); return; }
     if(!existing && !B.state.originalCanvas){ B.toast('Pilih & edit foto dulu — preset diambil dari pengaturan editmu saat ini.'); return; }
     openModal(presetFormHTML(existing));
     let thumbFile=null, thumbUrl=(existing&&existing.thumbnail)||'';
@@ -186,7 +186,7 @@ ready(function(){
   });
 
   async function duplicatePreset(id, d, {silent}={}){
-    if(!B.getUid()){ B.toast('Login dulu.'); return; }
+    if(!B.getUid()){ B.requireLogin('Login untuk melanjutkan.'); return; }
     try{
       const newId=await C.createDoc('presets', {
         name:d.name+' (copy)', description:d.description||'', category:d.category, tags:d.tags||[],
@@ -232,7 +232,7 @@ ready(function(){
   }
 
   function openOverlayForm(existing){
-    if(!B.getUid()){ B.toast('Login dulu untuk mengunggah overlay.'); return; }
+    if(!B.getUid()){ B.requireLogin('Login untuk mengunggah overlay.'); return; }
     openModal(overlayFormHTML(existing));
     let pngFile=null, pngUrl=(existing&&existing.pngUrl)||'';
     onModal('[data-close]','click',closeModal);
@@ -579,7 +579,7 @@ ready(function(){
         community-social.js overrides the 'feed' case once it loads.
      ------------------------------------------------------------------ */
   function openUpload(tab){
-    if(!B.getUid()){ B.toast('Login dulu untuk membuat konten.'); return; }
+    if(!B.getUid()){ B.requireLogin('Login untuk membuat konten.'); return; }
     if(tab==='preset') return openPresetForm(null);
     if(tab==='overlay') return openOverlayForm(null);
     if(window.PECommunity.openPostForm) return window.PECommunity.openPostForm();

@@ -419,7 +419,7 @@ async function checkAndEnforceIpLimit(uid){
 /* ---- Banned view (with live countdown) ---- */
 let banCountdownTimer=null, pendingBanRemainingMs=null;
 function showBannedView(remainingMs){
-  showAuthView('viewBanned');
+  openAuthGate({ view:'viewBanned', dismissible:false });
   const el=$('bannedCountdown');
   clearInterval(banCountdownTimer);
   function render(){
@@ -433,7 +433,7 @@ function showBannedView(remainingMs){
 
 /* ---- Email verification gate ---- */
 function showVerifyEmailView(email){
-  showAuthView('viewVerifyEmail');
+  openAuthGate({ view:'viewVerifyEmail', dismissible:false });
   const el=$('verifyEmailAddress');
   if(el) el.textContent=email||'';
 }
@@ -448,6 +448,40 @@ function hideLoginGate(){
   setAuthError('');
   setAuthSuccess('');
 }
+
+// ---- On-demand auth prompt ----
+// Guests can browse PhotoLab (including the community) freely. This opens
+// the existing login-card as a small dismissible modal only when the user
+// actually attempts something that needs an account (like, comment,
+// follow, post, chat, account page, etc). Forced states — email
+// verification, IP ban — call this with dismissible:false and keep their
+// original always-blocking behavior.
+const DEFAULT_AUTH_SUB = 'Masuk atau daftar untuk menyimpan status langganan PRO kamu.';
+function openAuthGate(opts){
+  opts = opts || {};
+  const view = opts.view || 'viewLogin';
+  const dismissible = opts.dismissible !== false;
+  setAuthError(''); setAuthSuccess('');
+  showAuthView(view);
+  const subEl = $('authSub');
+  if(subEl) subEl.textContent = opts.reason || DEFAULT_AUTH_SUB;
+  if(loginGate) loginGate.classList.toggle('gate-dismissible', dismissible);
+  showLoginGate();
+}
+function closeAuthGate(){
+  if(!loginGate || !loginGate.classList.contains('gate-dismissible')) return; // forced states can't be dismissed
+  hideLoginGate();
+}
+// Shared guard other modules (community.js, diamond-referral.js, chat, etc.)
+// can call before an account-only action. Returns true if already logged
+// in; otherwise opens the login prompt and returns false.
+function requireLogin(reason){
+  if(S.uid) return true;
+  openAuthGate({ view:'viewLogin', reason: reason || 'Login untuk melanjutkan.', dismissible:true });
+  return false;
+}
+const btnAuthGateClose = $('btnAuthGateClose');
+if(btnAuthGateClose) btnAuthGateClose.addEventListener('click', closeAuthGate);
 function setAuthError(msg){
   if(!loginErrorEl) return;
   loginErrorEl.textContent=msg||'';
@@ -532,15 +566,21 @@ function handleLoggedOutState(){
   stopResendCooldown();
   updateSubscriptionUI();
   updateUserProfileUI();
-  showLoginGate();
+  updateGuestNavUI();
   // If we just got here because checkAndEnforceIpLimit() force-signed the
   // user out for hitting the multi-account-per-IP limit, show the ban
-  // screen instead of the normal login form.
+  // screen instead of the normal login form (this one still force-blocks).
   if(pendingBanRemainingMs!=null){
     showBannedView(pendingBanRemainingMs);
     pendingBanRemainingMs=null;
   }else{
+    // Guests can browse PhotoLab (including the community) freely now.
+    // Reset the auth view back to Login for next time it's opened, but
+    // don't force it open — closeAuthGate()/openAuthGate() below handle
+    // showing it only when actually needed (account-only actions).
     showAuthView('viewLogin');
+    closeAuthGate();
+    if(loginGate) loginGate.classList.add('hidden'); // ensure closed even on first load, before gate-dismissible is ever set
   }
 }
 
@@ -603,9 +643,16 @@ async function handleAuthenticatedState(user){
   hideLoginGate();
   subscribePremiumStatus(user.uid);
   updateUserProfileUI();
+  updateGuestNavUI();
   saveUserProfileToDb(user);
   loadUserProfileFromFirestore(user.uid);
-  if(window.PECommunity && window.PECommunity.resolveSharedLink) window.PECommunity.resolveSharedLink();
+  // Community modules may not be loaded yet (lazy-loaded — see the
+  // "LAZY-LOAD COMMUNITY MODULES" section below). ensureCommunityModules()
+  // is idempotent, so this is safe to call even if they're already loading
+  // or loaded; resolveSharedLink() only runs once they're ready.
+  ensureCommunityModules().then(()=>{
+    if(window.PECommunity && window.PECommunity.resolveSharedLink) window.PECommunity.resolveSharedLink();
+  }).catch(err=>console.warn('Community modules failed to load', err));
 }
 
 // Loads the user's username + uploaded profile photo URL from Firestore
@@ -1135,7 +1182,7 @@ function askRamTier(){
    3d. APP-LEVEL NAVIGATION (Home / Project / Akun)
    ========================================================================== */
 const appNav=$('appNav');
-const PAGES=['home','project','account'];
+const PAGES=['home','project','account','community'];
 function goToPage(name){
   if(PAGES.indexOf(name)===-1) name='home';
   PAGES.forEach(p=>{
@@ -1157,8 +1204,27 @@ function goToPage(name){
 }
 if(appNav){
   appNav.querySelectorAll('.app-nav-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ goToPage(btn.dataset.page); haptic(); });
+    btn.addEventListener('click', ()=>{
+      const target=btn.dataset.page;
+      // Account page is inherently personal (profile, subscription, UID) —
+      // gate it. Home/Community/Project stay open so guests can explore.
+      if(target==='account' && !S.uid){
+        haptic();
+        openAuthGate({ view:'viewLogin', reason:'Login untuk melihat profil & langganan kamu.', dismissible:true });
+        return;
+      }
+      if(target==='community') ensureCommunityModules().catch(err=>console.warn('Community modules failed to load', err));
+      goToPage(target);
+      haptic();
+    });
   });
+}
+// Reflects logged-out state on the Akun nav button (small visual hint only —
+// the click handler above is what actually gates the page).
+function updateGuestNavUI(){
+  const navAcc=$('navBtnAccount');
+  if(navAcc) navAcc.classList.toggle('nav-needs-login', !S.uid);
+  updateLandingCtaUI();
 }
 
 /* ---- Account page: reuse the same actions as Subscription/Premium Center ---- */
@@ -4558,6 +4624,25 @@ $('btnReset').addEventListener('click',resetAll);
    ========================================================================== */
 $('btnChoosePhoto').addEventListener('click',pickFile);
 
+// ---- Landing page secondary CTAs (empty-state) ----
+const btnEmptyStateCommunity=$('btnEmptyStateCommunity');
+if(btnEmptyStateCommunity) btnEmptyStateCommunity.addEventListener('click', ()=>{
+  ensureCommunityModules().catch(err=>console.warn('Community modules failed to load', err));
+  goToPage('community');
+  haptic();
+});
+const btnEmptyStateSignup=$('btnEmptyStateSignup');
+if(btnEmptyStateSignup) btnEmptyStateSignup.addEventListener('click', ()=>{
+  openAuthGate({ view:'viewRegister', reason:'Daftar gratis untuk menyimpan karya & bergabung dengan komunitas.', dismissible:true });
+  haptic();
+});
+// Shows/hides "Daftar Gratis" on the landing empty-state depending on
+// login status — reused by updateGuestNavUI() below so it always stays
+// in sync with the Akun-nav guest indicator.
+function updateLandingCtaUI(){
+  if(btnEmptyStateSignup) btnEmptyStateSignup.style.display = S.uid ? 'none' : '';
+}
+
 /* ==========================================================================
    15. SETTINGS MODAL
    ========================================================================== */
@@ -4616,6 +4701,123 @@ function loadPrefs(){
    16. RESIZE HANDLING
    ========================================================================== */
 window.addEventListener('resize',debounce(()=>{ if(S.previewCanvas) fitToScreen(); },150));
+
+/* ==========================================================================
+   16c. ONBOARDING — short first-time tutorial (skippable, shown once)
+   ========================================================================== */
+const ONBOARDING_KEY='photoEnhance.onboardingDone';
+const ONBOARDING_STEP_COUNT=5;
+let onboardingStepIdx=0;
+function hasCompletedOnboarding(){
+  try{ return localStorage.getItem(ONBOARDING_KEY)==='1'; }catch(err){ return true; } // if storage is unavailable, don't nag every load
+}
+function markOnboardingDone(){
+  try{ localStorage.setItem(ONBOARDING_KEY,'1'); }catch(err){}
+}
+function renderOnboardingDots(){
+  const dotsEl=$('onboardingDots');
+  if(!dotsEl) return;
+  dotsEl.innerHTML='';
+  for(let i=0;i<ONBOARDING_STEP_COUNT;i++){
+    const d=document.createElement('span');
+    d.className='onboarding-dot'+(i===onboardingStepIdx?' active':'');
+    dotsEl.appendChild(d);
+  }
+}
+function showOnboardingStep(idx){
+  onboardingStepIdx=Math.max(0, Math.min(ONBOARDING_STEP_COUNT-1, idx));
+  const stepsEl=$('onboardingSteps');
+  if(stepsEl){
+    stepsEl.querySelectorAll('.onboarding-step').forEach(el=>{
+      el.classList.toggle('active', Number(el.dataset.step)===onboardingStepIdx);
+    });
+  }
+  renderOnboardingDots();
+  const backBtn=$('btnOnboardingBack');
+  if(backBtn) backBtn.style.visibility = onboardingStepIdx===0 ? 'hidden' : 'visible';
+  const nextBtn=$('btnOnboardingNext');
+  if(nextBtn) nextBtn.textContent = onboardingStepIdx===ONBOARDING_STEP_COUNT-1 ? 'Mulai' : 'Lanjut';
+}
+function openOnboarding(){
+  const backdrop=$('onboardingBackdrop');
+  if(!backdrop) return;
+  showOnboardingStep(0);
+  backdrop.classList.add('active');
+}
+function closeOnboarding(){
+  const backdrop=$('onboardingBackdrop');
+  if(backdrop) backdrop.classList.remove('active');
+  markOnboardingDone();
+}
+function maybeShowOnboarding(){
+  if(hasCompletedOnboarding()) return;
+  // Wait for the loading screen to finish fading so onboarding doesn't
+  // fight it for attention, but don't block anything else meanwhile.
+  setTimeout(openOnboarding, 1200);
+}
+const btnOnboardingSkip=$('btnOnboardingSkip');
+if(btnOnboardingSkip) btnOnboardingSkip.addEventListener('click', closeOnboarding);
+const btnOnboardingBack=$('btnOnboardingBack');
+if(btnOnboardingBack) btnOnboardingBack.addEventListener('click', ()=>showOnboardingStep(onboardingStepIdx-1));
+const btnOnboardingNext=$('btnOnboardingNext');
+if(btnOnboardingNext) btnOnboardingNext.addEventListener('click', ()=>{
+  if(onboardingStepIdx>=ONBOARDING_STEP_COUNT-1){ closeOnboarding(); return; }
+  showOnboardingStep(onboardingStepIdx+1);
+});
+
+/* ==========================================================================
+   16b. LAZY-LOAD COMMUNITY MODULES
+   community.js, community-creator.js, community-watermark.js,
+   community-social.js and diamond-referral.js used to be loaded eagerly by
+   <script> tags in photolab.html, which meant every guest and every user
+   downloaded/parsed/ran the whole community stack (plus its Firestore
+   reads) before ever seeing the editor. They're now loaded on demand:
+     - the first time the user opens the Community tab
+     - immediately if the page was opened via a community share link
+       (?open=...) so deep links keep working
+     - a few seconds after first paint anyway (idle), so a logged-in
+       user's feed/likes/diamond data is ready shortly after load without
+       ever blocking first paint
+   Loading is idempotent — safe to call this many times from many places.
+   ========================================================================== */
+const COMMUNITY_MODULE_SCRIPTS=[
+  'community.js',
+  'community-creator.js',
+  'community-watermark.js',
+  'community-social.js',
+  'diamond-referral.js' // must load last: it wraps window.PECommunity.toggleLike
+];
+let _communityModulesPromise=null;
+function loadScriptOnce(src){
+  return new Promise((resolve,reject)=>{
+    if(document.querySelector('script[data-lazy-src="'+src+'"]')){ resolve(); return; }
+    const s=document.createElement('script');
+    s.src=src;
+    s.dataset.lazySrc=src;
+    s.onload=()=>resolve();
+    s.onerror=()=>reject(new Error('Gagal memuat '+src));
+    document.body.appendChild(s);
+  });
+}
+function ensureCommunityModules(){
+  if(_communityModulesPromise) return _communityModulesPromise;
+  _communityModulesPromise=(async()=>{
+    for(const src of COMMUNITY_MODULE_SCRIPTS){
+      await loadScriptOnce(src);
+    }
+  })();
+  return _communityModulesPromise;
+}
+// Deep link into shared community content (?open=type-id) — load right away.
+if(location.search.indexOf('open=')!==-1) ensureCommunityModules();
+// Otherwise, load in the background once the main UI has had time to paint
+// and settle, so community features are ready soon after without delaying
+// first paint. Uses requestIdleCallback where available.
+(function scheduleBackgroundCommunityLoad(){
+  const start=()=> ensureCommunityModules().catch(err=>console.warn('Community modules failed to load', err));
+  if('requestIdleCallback' in window) requestIdleCallback(start, {timeout:4000});
+  else setTimeout(start, 2500);
+})();
 
 /* ==========================================================================
    17. LOADING SCREEN
@@ -5039,6 +5241,7 @@ function init(){
   refreshFreeUsageUI();
   updateSubscriptionUI();
   initFirebase();
+  maybeShowOnboarding();
 }
 init();
 
@@ -5063,6 +5266,13 @@ window.PEBridge = {
   getAuth: ()=> firebaseAuthRef,
   getUid: ()=> S.uid,
   getUserProfile: ()=> S.userProfile,
+  // Guests can browse freely now (see requirement: community viewable
+  // without login); modules call requireLogin(reason) before any
+  // account-only action (like/comment/follow/post/chat/create/save) to
+  // pop the login prompt instead of just failing silently.
+  requireLogin,
+  openAuthGate,
+  ensureCommunityModules,
   goToPage,
   registerPage(name){
     if(PAGES.indexOf(name)===-1) PAGES.push(name);

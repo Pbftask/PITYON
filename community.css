@@ -60,6 +60,10 @@
   display:grid;grid-template-columns:1fr 1fr;gap:12px;
 }
 .community-grid.feed-grid{grid-template-columns:1fr;}
+.community-loading-placeholder{
+  grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:48px 0;color:var(--text-dim);font-size:13px;
+}
 
 /* generic card shared by preset / overlay / post tiles (used by later phases) */
 .community-card{
