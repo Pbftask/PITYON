@@ -1,0 +1,55 @@
+/* ==========================================================================
+   DIAMOND / REFERRAL / MISSION MODULE — styles
+   Adds visuals for the "Undang Teman" (invite friends) + diamond currency
+   + daily missions block on the Account page. Reuses the app's existing
+   CSS variables (--bg, --surface, --accent, --border, --radius-*) so it
+   matches the current theme (including light-mode overrides) automatically.
+   ========================================================================== */
+
+.diamond-section h4{display:flex;align-items:center;gap:7px;}
+.diamond-section h4 i{color:var(--accent);}
+
+.diamond-hero{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:14px 0 16px;
+}
+.diamond-hero-label{font-size:12px;color:var(--text-dim);}
+.diamond-hero-num{
+  font-size:34px;font-weight:800;font-family:var(--font-mono);color:var(--accent);
+  display:flex;align-items:center;gap:6px;
+}
+
+.invite-box{
+  margin-top:16px;padding:14px;border:1px solid var(--border);
+  border-radius:var(--radius-md);background:var(--surface-2, rgba(255,255,255,0.03));
+}
+.invite-box-label{
+  display:block;font-size:12px;font-weight:700;color:var(--text-dim);
+  margin-bottom:8px;text-transform:uppercase;letter-spacing:0.03em;
+}
+.invite-box .uid-row{margin-bottom:0;}
+.invite-box .admin-status{margin:6px 0 0;}
+
+.mission-section{margin-top:16px;}
+.mission-list{display:flex;flex-direction:column;gap:8px;}
+.mission-item{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--surface-2, rgba(255,255,255,0.03));
+}
+.mission-item.is-done{opacity:0.6;}
+.mission-info{display:flex;flex-direction:column;gap:2px;}
+.mission-info b{font-size:12.5px;font-weight:650;}
+.mission-info span{font-size:11px;color:var(--text-dim);font-family:var(--font-mono);}
+.mission-pending{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap;}
+.mission-done{
+  font-size:12px;font-weight:650;color:var(--accent-2);white-space:nowrap;
+  display:flex;align-items:center;gap:5px;
+}
+.mission-action{
+  flex-shrink:0;padding:7px 14px;font-size:12px;
+}
+
+@media (prefers-color-scheme: light){
+  .invite-box,.mission-item{background:rgba(20,18,14,0.03);}
+}

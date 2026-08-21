@@ -9,6 +9,10 @@
 <link rel="stylesheet" href="photolab-style.css">
 <link rel="stylesheet" href="community.css">
 <link rel="stylesheet" href="compress-convert.css">
+<link rel="stylesheet" href="diamond-referral.css">
+<!-- reCAPTCHA v2 (checkbox) — used as a friction gate on Register/Login.
+     See CONFIG.RECAPTCHA_SITE_KEY in photolab-script.js to activate it. -->
+<script src="https://www.google.com/recaptcha/api.js?onload=onRecaptchaApiLoad&render=explicit" async defer></script>
 </head>
 <body>
 <!-- ================= LOGIN GATE (Firebase Email/Password Authentication) ================= -->
@@ -25,6 +29,7 @@
       <form class="auth-form" id="formLogin" novalidate>
         <input class="auth-input" type="email" id="loginEmail" placeholder="Email" autocomplete="email" required>
         <input class="auth-input" type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" required>
+        <div class="captcha-wrap"><div id="captchaLogin"></div></div>
         <button type="submit" class="btn-primary auth-submit" id="btnLoginSubmit" style="width:100%;justify-content:center;">Login</button>
       </form>
       <div class="auth-links">
@@ -39,6 +44,7 @@
         <input class="auth-input" type="email" id="regEmail" placeholder="Email" autocomplete="email" required>
         <input class="auth-input" type="password" id="regPassword" placeholder="Password (minimal 8 karakter)" autocomplete="new-password" required>
         <input class="auth-input" type="password" id="regPasswordConfirm" placeholder="Konfirmasi Password" autocomplete="new-password" required>
+        <div class="captcha-wrap"><div id="captchaRegister"></div></div>
         <button type="submit" class="btn-primary auth-submit" id="btnRegisterSubmit" style="width:100%;justify-content:center;">Daftar</button>
       </form>
       <p class="auth-switch">Sudah punya akun? <button type="button" class="link-btn" id="linkGoToLogin">Login</button></p>
@@ -52,6 +58,28 @@
         <button type="submit" class="btn-primary auth-submit" id="btnForgotSubmit" style="width:100%;justify-content:center;">Kirim Link Reset Password</button>
       </form>
       <button type="button" class="link-btn auth-back" id="linkForgotToLogin">Kembali ke Login</button>
+    </div>
+
+    <!-- ---- EMAIL VERIFICATION GATE ---- -->
+    <div class="auth-view" id="viewVerifyEmail">
+      <div class="verify-icon"><i class="fa-solid fa-envelope-circle-check"></i></div>
+      <p class="login-sub" style="margin-bottom:6px;">Kami telah mengirim link verifikasi ke:</p>
+      <p class="verify-email-address" id="verifyEmailAddress"></p>
+      <p class="login-sub" style="margin:10px 0 18px;">Buka email kamu, klik link verifikasi, lalu tekan tombol di bawah ini.</p>
+      <button type="button" class="btn-primary auth-submit" id="btnCheckVerify" style="width:100%;justify-content:center;">Saya Sudah Verifikasi</button>
+      <div class="auth-links" style="text-align:center;margin-top:12px;">
+        <button type="button" class="link-btn" id="btnResendVerify">Kirim Ulang Email Verifikasi</button>
+      </div>
+      <button type="button" class="link-btn auth-back" id="btnLogoutFromVerify">Keluar &amp; Gunakan Akun Lain</button>
+    </div>
+
+    <!-- ---- IP / MULTI-AKUN BAN NOTICE ---- -->
+    <div class="auth-view" id="viewBanned">
+      <div class="verify-icon banned"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <p class="login-sub" style="margin-bottom:6px;">Terdeteksi terlalu banyak akun login dari jaringan/IP yang sama.</p>
+      <p class="login-sub">Untuk menjaga keamanan, akses dari jaringan ini dibatasi sementara.</p>
+      <p class="banned-countdown" id="bannedCountdown"></p>
+      <button type="button" class="link-btn auth-back" id="btnLogoutFromBanned">Kembali ke Login</button>
     </div>
 
     <div class="login-error" id="loginError" style="display:none;"></div>
@@ -308,6 +336,49 @@
         <button class="credit-pkg" data-pkg="yearly"><b>Tahunan</b><span>365 hari</span></button>
       </div>
       <p style="font-size:11.5px;color:var(--text-dim);margin:8px 0 0;">Tap paket untuk membuka halaman pembelian.</p>
+    </div>
+
+    <!-- ================= DIAMOND / UNDANG TEMAN / MISI ================= -->
+    <div class="modal-section diamond-section">
+      <h4><i class="fa-solid fa-gem"></i> Diamond &amp; Undang Teman</h4>
+
+      <div class="diamond-hero">
+        <span class="diamond-hero-label">Diamond Kamu</span>
+        <span class="diamond-hero-num"><span id="diamondBalanceNum">0</span> 💎</span>
+      </div>
+      <button class="btn-primary" id="btnRedeemDiamondPro" type="button" style="width:100%;justify-content:center;" disabled>
+        <i class="fa-solid fa-bolt"></i>&nbsp;Tukar 20 💎 → PRO 3 Hari
+      </button>
+      <p style="font-size:11px;color:var(--text-dim);margin:8px 0 0;">Kumpulkan diamond dari undangan &amp; misi di bawah, lalu tukar jadi PRO 3 hari.</p>
+
+      <div class="invite-box">
+        <span class="invite-box-label">Kode Undanganmu</span>
+        <div class="uid-row">
+          <code id="myInviteCodeText">–</code>
+          <button class="btn-ghost uid-copy-btn" id="btnCopyInviteCode" type="button">Salin</button>
+        </div>
+        <button class="btn-ghost" id="btnShareInviteGeneric" type="button" style="width:100%;justify-content:center;margin-top:8px;">
+          <i class="fa-solid fa-share-nodes"></i>&nbsp;Bagikan Kode Undangan
+        </button>
+        <div class="about-row"><span>Teman diundang</span><span id="referredCountNum">0</span></div>
+        <p style="font-size:11px;color:var(--text-dim);margin:6px 0 0;">Setiap teman yang mendaftar pakai kodemu = <b>+1 💎</b> buat kamu.</p>
+      </div>
+
+      <div class="invite-box" id="redeemInviteSection">
+        <span class="invite-box-label">Punya Kode Undangan Teman?</span>
+        <div class="admin-uid-row">
+          <input type="text" id="redeemInviteInput" class="auth-input" placeholder="Masukkan kode undangan" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button class="btn-ghost" id="btnRedeemInvite" type="button">Konfirmasi</button>
+        </div>
+        <p style="font-size:11px;color:var(--text-dim);margin:6px 0 0;">Masukkan kode dari temanmu &amp; dapatkan <b>+5 💎</b> langsung. Hanya bisa dipakai sekali.</p>
+        <p class="admin-status" id="redeemInviteStatus"></p>
+      </div>
+      <div class="about-row" id="usedInviteInfo" style="display:none;"><span>Kode undangan</span><span>Sudah digunakan ✅</span></div>
+
+      <div class="mission-section">
+        <span class="invite-box-label">Misi Diamond</span>
+        <div class="mission-list" id="diamondMissionList"><!-- populated by diamond-referral.js --></div>
+      </div>
     </div>
 
     <div class="modal-section">
@@ -592,5 +663,6 @@
 <script src="community-creator.js"></script>
 <script src="community-watermark.js"></script>
 <script src="community-social.js"></script>
+<script src="diamond-referral.js"></script>
 </body>
 </html>

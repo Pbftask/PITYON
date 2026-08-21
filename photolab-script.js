@@ -10,7 +10,39 @@ const CONFIG = {
   // Get a free key at https://api.imgbb.com/ (login with Google, click
   // "Add API key"), then paste it below. Used only to host the user's
   // uploaded profile photo — no other images are ever sent anywhere.
-  IMGBB_API_KEY: "4b5b5ba36295e875f1c44a632408c8c7"
+  IMGBB_API_KEY: "4b5b5ba36295e875f1c44a632408c8c7",
+
+  /* ---- SECURITY (added) --------------------------------------------
+     This project is on the Firebase Spark (free) plan, which has no
+     Cloud Functions. That means everything below runs client-side and
+     is enforced by Firestore + the browser only — a modified/scripted
+     client that skips this code entirely CAN bypass it. It still stops
+     casual abuse (normal users going through the real UI), but it is
+     not a substitute for server-side enforcement. Upgrading to Blaze +
+     adding a Cloud Function later would let a server verify all of this
+     for real. */
+
+  // 1) reCAPTCHA v2 "checkbox" site key. Get one free at
+  //    https://www.google.com/recaptcha/admin — register your domain(s),
+  //    pick "reCAPTCHA v2 → I'm not a robot Checkbox", then paste the
+  //    SITE KEY (not the secret key) below. Leave blank to disable it.
+  RECAPTCHA_SITE_KEY: "",
+
+  // 2) Free API key from https://iplocate.io (no credit card, 1,000
+  //    requests/day free) — used only to flag whether a login's IP looks
+  //    like a VPN/proxy/Tor exit node. Leave blank to skip VPN flagging;
+  //    the "max accounts per IP" limit below still works without it,
+  //    using the IP address alone (fetched from the free ipify.org API).
+  //    NOTE: like IMGBB_API_KEY above, this key is visible in the page
+  //    source — there's no backend on the Spark plan to hide it behind.
+  IPLOCATE_API_KEY: "",
+
+  // 3) Multi-account-per-IP guard.
+  SECURITY: {
+    maxAccountsPerIp: 3,  // ban once this many DIFFERENT accounts log in
+    windowMinutes: 60,    // ...from the same IP within this many minutes
+    banMinutes: 60        // temporary ban duration once triggered
+  }
 };
 const SUBSCRIBE_URL =
   "chat.html?uid=BQy28ApNQPYPTRLQNKOgx5VmX9z1";
@@ -260,8 +292,8 @@ const loginGate=$('loginGate');
 const loginErrorEl=$('loginError');
 const loginSuccessEl=$('loginSuccess');
 
-// ---- Auth view switcher (login / register / forgot-password) ----
-const AUTH_VIEWS=['viewLogin','viewRegister','viewForgot'];
+// ---- Auth view switcher (login / register / forgot-password / verify-email / banned) ----
+const AUTH_VIEWS=['viewLogin','viewRegister','viewForgot','viewVerifyEmail','viewBanned'];
 function showAuthView(name){
   AUTH_VIEWS.forEach(id=>{
     const el=$(id);
@@ -269,6 +301,141 @@ function showAuthView(name){
   });
   setAuthError('');
   setAuthSuccess('');
+}
+
+/* ==========================================================================
+   SECURITY ADD-ONS: reCAPTCHA, email verification gate, IP/VPN monitoring
+   with auto temporary ban. See the SECURITY note above CONFIG for the
+   Spark-plan limitations of the pieces below.
+   ========================================================================== */
+
+/* ---- reCAPTCHA v2 (explicit render, since there are two widgets: one on
+   the login form, one on the register form) ---- */
+let captchaWidgetLogin=null, captchaWidgetRegister=null;
+window.onRecaptchaApiLoad=function(){
+  try{
+    if(typeof grecaptcha==='undefined' || !CONFIG.RECAPTCHA_SITE_KEY) return;
+    const elLogin=document.getElementById('captchaLogin');
+    const elRegister=document.getElementById('captchaRegister');
+    if(elLogin) captchaWidgetLogin=grecaptcha.render(elLogin,{sitekey:CONFIG.RECAPTCHA_SITE_KEY});
+    if(elRegister) captchaWidgetRegister=grecaptcha.render(elRegister,{sitekey:CONFIG.RECAPTCHA_SITE_KEY});
+  }catch(err){ console.warn('reCAPTCHA render error', err); }
+};
+// Returns '' (and leaves the widget alone) if CAPTCHA isn't configured, so
+// the app keeps working normally until CONFIG.RECAPTCHA_SITE_KEY is set.
+function getCaptchaToken(widgetId){
+  if(!CONFIG.RECAPTCHA_SITE_KEY || typeof grecaptcha==='undefined') return '';
+  try{ return grecaptcha.getResponse(widgetId)||''; }catch(err){ return ''; }
+}
+function resetCaptcha(widgetId){
+  if(!CONFIG.RECAPTCHA_SITE_KEY || typeof grecaptcha==='undefined' || widgetId==null) return;
+  try{ grecaptcha.reset(widgetId); }catch(err){}
+}
+
+/* ---- IP address + VPN flag lookup (client-side, best-effort) ----
+   ipify.org: free, no key, HTTPS, just the IP — used to guarantee the
+   per-IP account limit works even before an IPLOCATE_API_KEY is set.
+   iplocate.io: free key, adds a VPN/proxy/Tor flag on top. */
+async function getClientIP(){
+  let ip=null, isVpn=null;
+  try{
+    const res=await fetch('https://api.ipify.org?format=json');
+    if(res.ok){ const data=await res.json(); ip=data && data.ip || null; }
+  }catch(err){ console.warn('ipify lookup failed (offline / blocked?)', err); }
+  if(CONFIG.IPLOCATE_API_KEY){
+    try{
+      const res=await fetch('https://www.iplocate.io/api/lookup/?apikey='+encodeURIComponent(CONFIG.IPLOCATE_API_KEY));
+      if(res.ok){
+        const data=await res.json();
+        if(!ip) ip=data && data.ip || null;
+        isVpn = !!(data && data.privacy && (data.privacy.is_vpn || data.privacy.is_proxy || data.privacy.is_tor));
+      }
+    }catch(err){ console.warn('iplocate lookup failed', err); }
+  }
+  return {ip, isVpn};
+}
+function sanitizeIpKey(ip){
+  return (ip||'unknown_ip').replace(/[.:]/g,'_');
+}
+
+/* ---- Multi-account-per-IP guard ----
+   On every successful login (see handleAuthenticatedState), records this
+   uid+timestamp under Firestore collection "ipActivity/{ip}". If the
+   number of DIFFERENT accounts seen from that IP within SECURITY.windowMinutes
+   reaches SECURITY.maxAccountsPerIp, writes a temporary ban to
+   "ipBans/{ip}" and signs the current user back out.
+
+   REQUIRED Firestore Security Rules (add alongside the existing ones —
+   see the "profiles" rules note elsewhere in this file):
+     match /ipActivity/{ip} { allow read, write: if request.auth != null; }
+     match /ipBans/{ip}     { allow read, write: if request.auth != null; }
+*/
+async function checkAndEnforceIpLimit(uid){
+  if(!firestoreDbRef) return {banned:false};
+  const {ip, isVpn}=await getClientIP();
+  if(!ip) return {banned:false}; // couldn't determine IP — fail open, don't block real users
+  const ipKey=sanitizeIpKey(ip);
+  const now=Date.now();
+  const sec=CONFIG.SECURITY||{};
+  const windowMs=(sec.windowMinutes||60)*60*1000;
+  const banMs=(sec.banMinutes||60)*60*1000;
+  const maxAccounts=sec.maxAccountsPerIp||3;
+
+  try{
+    // 1) Already banned?
+    const banDoc=await firestoreDbRef.collection('ipBans').doc(ipKey).get();
+    if(banDoc.exists){
+      const data=banDoc.data()||{};
+      if(data.expiresAt && data.expiresAt>now){
+        return {banned:true, remainingMs:data.expiresAt-now};
+      }
+    }
+
+    // 2) Record this login, pruning entries outside the time window.
+    const actRef=firestoreDbRef.collection('ipActivity').doc(ipKey);
+    const actDoc=await actRef.get();
+    let uids=(actDoc.exists && actDoc.data() && actDoc.data().uids) || {};
+    Object.keys(uids).forEach(k=>{ if(!uids[k] || (now-uids[k])>windowMs) delete uids[k]; });
+    uids[uid]=now;
+    await actRef.set({ uids, updatedAt:now, lastIp:ip, isVpn:!!isVpn }, {merge:false});
+
+    // 3) Ban if too many distinct accounts on this IP.
+    const distinctCount=Object.keys(uids).length;
+    if(distinctCount>=maxAccounts){
+      await firestoreDbRef.collection('ipBans').doc(ipKey).set({
+        bannedAt:now, expiresAt:now+banMs, uidCount:distinctCount, ip
+      });
+      return {banned:true, remainingMs:banMs};
+    }
+    return {banned:false};
+  }catch(err){
+    // Fails open: if Firestore rules aren't set up yet or the network is
+    // down, don't lock real users out — just skip the check this time.
+    console.warn('IP limit check skipped (Firestore rules belum diatur?)', err);
+    return {banned:false};
+  }
+}
+
+/* ---- Banned view (with live countdown) ---- */
+let banCountdownTimer=null, pendingBanRemainingMs=null;
+function showBannedView(remainingMs){
+  showAuthView('viewBanned');
+  const el=$('bannedCountdown');
+  clearInterval(banCountdownTimer);
+  function render(){
+    const mins=Math.max(0, Math.ceil(remainingMs/60000));
+    if(el) el.textContent = mins>1 ? `Coba lagi dalam ~${mins} menit.` : 'Coba lagi sebentar lagi.';
+    if(remainingMs<=0) clearInterval(banCountdownTimer);
+  }
+  render();
+  banCountdownTimer=setInterval(()=>{ remainingMs-=1000; render(); }, 1000);
+}
+
+/* ---- Email verification gate ---- */
+function showVerifyEmailView(email){
+  showAuthView('viewVerifyEmail');
+  const el=$('verifyEmailAddress');
+  if(el) el.textContent=email||'';
 }
 
 function showLoginGate(){
@@ -366,7 +533,15 @@ function handleLoggedOutState(){
   updateSubscriptionUI();
   updateUserProfileUI();
   showLoginGate();
-  showAuthView('viewLogin');
+  // If we just got here because checkAndEnforceIpLimit() force-signed the
+  // user out for hitting the multi-account-per-IP limit, show the ban
+  // screen instead of the normal login form.
+  if(pendingBanRemainingMs!=null){
+    showBannedView(pendingBanRemainingMs);
+    pendingBanRemainingMs=null;
+  }else{
+    showAuthView('viewLogin');
+  }
 }
 
 // ---- STATE 2: AUTHENTICATED ----
@@ -402,7 +577,25 @@ async function grantFreeTrialIfNew(uid){
     console.warn('Free trial grant skipped (kemungkinan Firebase Rules belum mengizinkan)', err);
   }
 }
-function handleAuthenticatedState(user){
+async function handleAuthenticatedState(user){
+  // 1) Multi-account-per-IP guard — runs before anything else. If this
+  //    IP just tipped over the limit, sign back out and show the ban
+  //    screen (handleLoggedOutState picks up pendingBanRemainingMs).
+  const ipCheck=await checkAndEnforceIpLimit(user.uid);
+  if(ipCheck.banned){
+    pendingBanRemainingMs=ipCheck.remainingMs;
+    try{ await firebaseAuthRef.signOut(); }catch(e){}
+    return;
+  }
+
+  // 2) Email verification gate — block entry into the app until the
+  //    user's email is verified. Doesn't sign out, just keeps the login
+  //    gate open on a different view so they can resend/recheck.
+  if(!user.emailVerified){
+    showVerifyEmailView(user.email);
+    return;
+  }
+
   S.uid=user.uid;
   S.userProfile={ name:(user.email||'').split('@')[0], username:'', email:user.email||'', photo:'' };
   S.isAdmin = ADMIN_EMAILS.includes((user.email||'').toLowerCase());
@@ -459,6 +652,8 @@ if(formRegister) formRegister.addEventListener('submit', async (e)=>{
   if(password.length<8){ setAuthError('Password minimal 8 karakter.'); return; }
   if(password!==confirm){ setAuthError('Password dan konfirmasi password tidak sama.'); return; }
   if(!firebaseAuthRef){ setAuthError('Sistem login belum siap. Coba lagi sebentar.'); return; }
+  const captchaToken=getCaptchaToken(captchaWidgetRegister);
+  if(CONFIG.RECAPTCHA_SITE_KEY && !captchaToken){ setAuthError('Selesaikan verifikasi CAPTCHA terlebih dahulu.'); return; }
 
   authBusy=true;
   const btn=$('btnRegisterSubmit');
@@ -466,13 +661,21 @@ if(formRegister) formRegister.addEventListener('submit', async (e)=>{
   try{
     const cred=await firebaseAuthRef.createUserWithEmailAndPassword(email, password);
     formRegister.reset();
+    resetCaptcha(captchaWidgetRegister);
     // Brand-new account: grant the 7-day free PRO trial. Fire-and-forget —
     // onAuthStateChanged already routes straight into the app once created,
     // this just unlocks PRO on top of that. See grantFreeTrialIfNew() below.
-    if(cred && cred.user) grantFreeTrialIfNew(cred.user.uid);
+    if(cred && cred.user){
+      grantFreeTrialIfNew(cred.user.uid);
+      // Kick off the email verification gate (see showVerifyEmailView /
+      // handleAuthenticatedState) — sent fire-and-forget so a slow mail
+      // relay never blocks the signup flow itself.
+      try{ await cred.user.sendEmailVerification(); }catch(e){ console.warn('Send verification email failed', e); }
+    }
   }catch(err){
     console.error('Register error', err);
     setAuthError(mapFirebaseError(err));
+    resetCaptcha(captchaWidgetRegister);
   }finally{
     authBusy=false;
     setBtnLoading(btn, false, 'Daftar');
@@ -491,6 +694,8 @@ if(formLogin) formLogin.addEventListener('submit', async (e)=>{
   if(!isValidEmail(email)){ setAuthError('Format email tidak valid.'); return; }
   if(!password){ setAuthError('Password wajib diisi.'); return; }
   if(!firebaseAuthRef){ setAuthError('Sistem login belum siap. Coba lagi sebentar.'); return; }
+  const captchaToken=getCaptchaToken(captchaWidgetLogin);
+  if(CONFIG.RECAPTCHA_SITE_KEY && !captchaToken){ setAuthError('Selesaikan verifikasi CAPTCHA terlebih dahulu.'); return; }
 
   authBusy=true;
   const btn=$('btnLoginSubmit');
@@ -498,10 +703,13 @@ if(formLogin) formLogin.addEventListener('submit', async (e)=>{
   try{
     await firebaseAuthRef.signInWithEmailAndPassword(email, password);
     formLogin.reset();
-    // onAuthStateChanged routes into the app automatically.
+    resetCaptcha(captchaWidgetLogin);
+    // onAuthStateChanged routes into the app automatically (through the
+    // IP-ban guard + email-verification gate in handleAuthenticatedState).
   }catch(err){
     console.error('Login error', err);
     setAuthError(mapFirebaseError(err));
+    resetCaptcha(captchaWidgetLogin);
   }finally{
     authBusy=false;
     setBtnLoading(btn, false, 'Login');
@@ -536,6 +744,47 @@ if(formForgot) formForgot.addEventListener('submit', async (e)=>{
     setBtnLoading(btn, false, 'Kirim Link Reset Password');
   }
 });
+
+/* ---- EMAIL VERIFICATION GATE: buttons ---- */
+const btnResendVerify=$('btnResendVerify');
+if(btnResendVerify) btnResendVerify.addEventListener('click', async ()=>{
+  if(!firebaseAuthRef || !firebaseAuthRef.currentUser) return;
+  setAuthError(''); setAuthSuccess('');
+  btnResendVerify.disabled=true;
+  try{
+    await firebaseAuthRef.currentUser.sendEmailVerification();
+    setAuthSuccess('Email verifikasi dikirim ulang. Periksa inbox atau folder spam.');
+  }catch(err){
+    setAuthError(mapFirebaseError(err));
+  }finally{
+    setTimeout(()=>{ btnResendVerify.disabled=false; }, 30000); // 30s cooldown to avoid spamming Firebase's send quota
+  }
+});
+
+const btnCheckVerify=$('btnCheckVerify');
+if(btnCheckVerify) btnCheckVerify.addEventListener('click', async ()=>{
+  if(!firebaseAuthRef || !firebaseAuthRef.currentUser) return;
+  setAuthError(''); setAuthSuccess('');
+  setBtnLoading(btnCheckVerify, true, 'Saya Sudah Verifikasi');
+  try{
+    await firebaseAuthRef.currentUser.reload();
+    const freshUser=firebaseAuthRef.currentUser;
+    if(freshUser && freshUser.emailVerified){
+      handleAuthenticatedState(freshUser);
+    }else{
+      setAuthError('Email belum terverifikasi. Cek inbox kamu lagi ya.');
+    }
+  }catch(err){
+    setAuthError(mapFirebaseError(err));
+  }finally{
+    setBtnLoading(btnCheckVerify, false, 'Saya Sudah Verifikasi');
+  }
+});
+
+const btnLogoutFromVerify=$('btnLogoutFromVerify');
+if(btnLogoutFromVerify) btnLogoutFromVerify.addEventListener('click', ()=>{ signOutUser(); });
+const btnLogoutFromBanned=$('btnLogoutFromBanned');
+if(btnLogoutFromBanned) btnLogoutFromBanned.addEventListener('click', ()=>{ showAuthView('viewLogin'); });
 
 /* ---- VIEW NAVIGATION LINKS ---- */
 const linkGoToRegister=$('linkGoToRegister');
