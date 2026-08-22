@@ -6,22 +6,19 @@
 <title>Spiralist — Photo Spiral Art Generator</title>
 <style>
   :root{
-    --bg:#0b0b0e;
-    --surface:#141419;
-    --surface-2:#1b1b22;
-    --surface-3:#232330;
-    --border:#2b2b36;
-    --text:#efece6;
-    --text-dim:#93909d;
-    --text-faint:#5c5a66;
-    --accent:#f0a13c;
-    --accent-dim:#a97530;
-    --accent-ink:#12100a;
-    --teal:#5fb6ac;
+    --bg:#ffffff;
+    --surface:#f4f4f5;
+    --surface-2:#ececee;
+    --border:#e6e6e8;
+    --text:#111113;
+    --text-dim:#9b9ba1;
+    --text-faint:#c4c4c9;
+    --ink:#141416;
+    --gold:#a9895f;
+    --gold-2:#7c6440;
     --danger:#e2604f;
     --radius-lg:18px;
     --radius-md:12px;
-    --radius-sm:8px;
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-t: env(safe-area-inset-top, 0px);
     font-size:16px;
@@ -29,398 +26,212 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;overscroll-behavior:none;}
   body{
-    margin:0;
-    background:var(--bg);
-    color:var(--text);
+    margin:0;background:var(--bg);color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    overflow:hidden;
-    display:flex;
-    flex-direction:column;
-    height:100vh;
-    height:100dvh;
+    overflow:hidden;display:flex;flex-direction:column;height:100vh;height:100dvh;
     -webkit-text-size-adjust:100%;
   }
-  ::selection{background:var(--accent);color:var(--accent-ink);}
-  button{font-family:inherit;}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  button{font-family:inherit;background:none;border:none;color:inherit;cursor:pointer;}
+  ::selection{background:var(--ink);color:#fff;}
 
   /* ---------- HEADER ---------- */
   header{
-    flex:0 0 auto;
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:calc(10px + var(--safe-t)) calc(14px + env(safe-area-inset-right, 0px)) 10px calc(14px + env(safe-area-inset-left, 0px));
-    background:linear-gradient(180deg,#101014,#0d0d10);
-    border-bottom:1px solid var(--border);
-    z-index:20;
+    flex:0 0 auto;display:flex;align-items:flex-start;justify-content:space-between;
+    padding:calc(12px + var(--safe-t)) 16px 10px 16px;
+    background:var(--bg);border-bottom:1px solid var(--border);
   }
-  .brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0;}
-  .brand-mark{width:30px;height:30px;flex:0 0 auto;color:var(--accent);animation:spin-slow 12s linear infinite;}
+  .brand{display:flex;flex-direction:column;align-items:flex-start;gap:2px;}
+  .brand-mark{width:32px;height:32px;color:var(--gold);animation:spin-slow 14s linear infinite;}
   @keyframes spin-slow{to{transform:rotate(360deg);}}
-  .brand-text{display:flex;flex-direction:column;line-height:1.1;min-width:0;overflow:hidden;}
-  .brand-text .name{font-size:15px;font-weight:700;letter-spacing:0.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .brand-text .tag{font-size:10px;color:var(--text-faint);letter-spacing:1.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .head-actions{display:flex;gap:6px;flex:0 0 auto;}
+  .brand-name{font-size:10.5px;font-weight:700;letter-spacing:2.5px;color:var(--text);margin-top:2px;}
+  .head-actions{display:flex;align-items:center;gap:16px;padding-top:6px;}
   .icon-btn{
-    width:38px;height:38px;min-width:38px;border-radius:var(--radius-sm);
-    background:var(--surface-2);border:1px solid var(--border);color:var(--text);
-    display:flex;align-items:center;justify-content:center;
-    transition:background .15s ease, transform .1s ease, border-color .15s ease;
+    width:26px;height:26px;display:flex;align-items:center;justify-content:center;color:var(--ink);
+    transition:opacity .15s ease, transform .1s ease;
   }
-  .icon-btn svg{width:17px;height:17px;}
-  .icon-btn:active{transform:scale(0.92);}
-  .icon-btn:hover{background:var(--surface-3);border-color:var(--accent-dim);}
-  .icon-btn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
-  .icon-btn:disabled{opacity:.35;pointer-events:none;}
+  .icon-btn svg{width:22px;height:22px;}
+  .icon-btn:active{transform:scale(.9);}
+  .icon-btn:disabled{opacity:.28;pointer-events:none;}
+  .icon-btn.active{color:var(--gold);}
 
-  /* ---------- MAIN LAYOUT ---------- */
-  main{flex:1 1 auto;display:flex;min-height:0;position:relative;}
+  /* ---------- MAIN ---------- */
+  main{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;position:relative;}
+
+  #action-row{
+    display:none;gap:10px;padding:12px 16px;flex:0 0 auto;
+    border-bottom:1px solid var(--border);
+  }
+  #action-row.show{display:flex;}
+  .pill-btn{
+    padding:11px 20px;border-radius:999px;font-size:13.5px;font-weight:700;
+    background:var(--ink);color:#fff;transition:transform .12s ease, opacity .12s ease;
+    white-space:nowrap;
+  }
+  .pill-btn:active{transform:scale(.96);}
+
   #stage-wrap{
-    flex:1 1 auto;
-    position:relative;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    overflow:hidden;
-    background:
-      radial-gradient(circle at 50% 30%, #17171d 0%, #0b0b0e 70%);
-    min-height:0;
+    flex:1 1 auto;position:relative;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;min-height:0;padding:10px 18px;
   }
   #stage-wrap.dragover::after{
-    content:"Lepas foto di sini";
-    position:absolute;inset:10px;
-    border:2px dashed var(--accent);
-    border-radius:var(--radius-lg);
-    display:flex;align-items:center;justify-content:center;
-    color:var(--accent);font-weight:600;font-size:14px;
-    background:rgba(240,161,60,0.06);
-    z-index:30;
-    pointer-events:none;
+    content:"Lepas foto di sini";position:absolute;inset:10px;
+    border:2px dashed var(--gold);border-radius:var(--radius-lg);
+    display:flex;align-items:center;justify-content:center;color:var(--gold-2);font-weight:700;font-size:14px;
+    background:rgba(169,137,95,0.06);z-index:30;pointer-events:none;
   }
 
-  /* Empty / upload state */
+  /* Empty state */
   #empty-state{
     display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:18px;padding:32px;text-align:center;max-width:340px;
+    gap:16px;padding:32px;text-align:center;max-width:340px;margin:0 auto;
   }
-  #empty-state .up-icon{width:60px;height:60px;color:var(--accent);opacity:.9;}
-  #empty-state h2{font-size:18px;margin:0;font-weight:700;}
-  #empty-state p{font-size:13px;color:var(--text-dim);margin:0;line-height:1.5;}
-  #empty-state .footer-links{
-    display:flex;align-items:center;gap:8px;
-    margin-top:10px;flex-wrap:wrap;justify-content:center;
-  }
-  #empty-state .footer-links a{
-    font-size:11.5px;color:var(--text-faint);text-decoration:none;
-    border-bottom:1px solid transparent;
-  }
-  #empty-state .footer-links a:hover{color:var(--text-dim);border-bottom-color:var(--text-faint);}
-  #empty-state .footer-links .dot{font-size:10px;color:var(--text-faint);}
-  .upload-btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px;}
-  .btn{
-    display:inline-flex;align-items:center;gap:8px;
+  #empty-state .up-icon{width:76px;height:76px;color:var(--ink);}
+  #empty-state h2{font-size:17px;margin:4px 0 0;font-weight:700;}
+  #empty-state p{font-size:13px;color:var(--text-dim);margin:0;line-height:1.55;}
+  .upload-btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px;}
+  .btn-upload{
     padding:11px 18px;border-radius:999px;border:1px solid var(--border);
-    background:var(--surface-2);color:var(--text);font-size:13.5px;font-weight:600;
-    transition:all .15s ease;white-space:nowrap;
+    background:var(--surface);color:var(--text);font-size:13.5px;font-weight:600;
+    transition:background .15s ease;white-space:nowrap;
   }
-  .btn svg{width:16px;height:16px;flex:0 0 auto;}
-  .btn:active{transform:scale(.96);}
-  .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
-  .btn.primary:hover{background:#ffb455;}
-  .btn.ghost:hover{background:var(--surface-3);border-color:var(--accent-dim);}
-  .btn.small{padding:8px 13px;font-size:12.5px;}
-  .btn:disabled{opacity:.4;pointer-events:none;}
+  .btn-upload:active{transform:scale(.96);}
+  .footer-links{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center;}
+  .footer-links a{font-size:11.5px;color:var(--text-dim);text-decoration:none;}
+  .footer-links .dot{font-size:10px;color:var(--text-faint);}
 
-  /* Canvas stage */
-  #canvas-stage{
-    position:relative;
-    touch-action:none;
-    display:none;
-    width:100%;
-    height:100%;
-    align-items:center;
-    justify-content:center;
-    padding:14px;
-  }
+  /* Canvas */
+  #canvas-stage{display:none;width:100%;height:100%;align-items:center;justify-content:center;}
   #canvas-stage.show{display:flex;}
-  #canvas-transform{
-    transform-origin:center center;
-    position:relative;
-    line-height:0;
-    /* width/height set inline via JS to exactly match the letterboxed
-       image size, so the before/after overlay and the drag handle
-       always line up pixel-for-pixel and stay correct after resize
-       or device rotation. */
-  }
-  canvas{display:block;border-radius:6px;}
-  #canvas-before, #canvas-after{
-    position:absolute;top:0;left:0;
-    width:100%;
-    height:100%;
-    box-shadow:0 10px 40px rgba(0,0,0,0.5);
-    border-radius:6px;
-  }
-  #canvas-before{position:relative;}
-  #canvas-after{clip-path:inset(0 0 0 var(--ba-split,50%));}
-
-  #ba-handle{
-    position:absolute;top:0;bottom:0;left:50%;
-    width:0;
-    display:flex;align-items:center;justify-content:center;
-    z-index:5;
-    touch-action:none;
-  }
-  #ba-handle .line{position:absolute;top:0;bottom:0;width:2px;left:-1px;background:rgba(255,255,255,0.85);box-shadow:0 0 6px rgba(0,0,0,.5);}
-  #ba-handle .knob{
-    width:34px;height:34px;border-radius:50%;background:var(--accent);
-    display:flex;align-items:center;justify-content:center;color:var(--accent-ink);
-    box-shadow:0 2px 10px rgba(0,0,0,.5);border:2px solid #12100a;
-    cursor:ew-resize;
-  }
-  #ba-handle .knob svg{width:16px;height:16px;}
-  #ba-labels{position:absolute;left:0;right:0;top:8px;display:flex;justify-content:flex-end;padding:0 10px;pointer-events:none;z-index:4;}
-  #ba-labels span{
-    font-size:10px;letter-spacing:1px;text-transform:uppercase;
-    background:rgba(0,0,0,0.55);color:#fff;padding:4px 9px;border-radius:99px;
-    backdrop-filter:blur(4px);
-  }
-  .stage-hidden #ba-labels, .no-ba #ba-handle, .no-ba #ba-labels{display:none;}
-
-  #side-actions-left, #side-actions-right{
-    position:absolute;top:50%;transform:translateY(-50%);
-    display:flex;flex-direction:column;gap:8px;z-index:8;
-  }
-  #side-actions-left{left:10px;}
-  #side-actions-right{right:10px;}
-
-  #stage-stats-bar{
-    position:absolute;left:10px;right:10px;
-    bottom:calc(64px + var(--safe-b));
-    display:flex;justify-content:space-between;gap:6px;
-    font-size:9.5px;letter-spacing:.3px;color:var(--text-dim);
-    background:rgba(0,0,0,0.45);backdrop-filter:blur(4px);
-    padding:7px 10px;border-radius:10px;z-index:8;
-  }
-  #stage-stats-bar b{color:var(--text-faint);font-weight:600;}
-  #stage-stats-bar em{color:var(--text);font-style:normal;font-weight:700;margin-left:3px;}
+  #canvas-after{max-width:100%;max-height:100%;display:block;}
 
   #video-scrub-bar{
-    position:absolute;left:10px;right:10px;bottom:calc(100px + var(--safe-b));
-    display:flex;align-items:center;gap:8px;z-index:9;
-    background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);
-    padding:6px 8px;border-radius:99px;
+    position:absolute;left:16px;right:16px;bottom:10px;display:flex;align-items:center;gap:8px;z-index:9;
+    background:rgba(20,20,22,0.75);backdrop-filter:blur(6px);padding:6px 10px;border-radius:99px;
   }
-  #video-scrub-bar .icon-btn{width:30px;height:30px;min-width:30px;background:rgba(255,255,255,0.08);border-color:transparent;}
-  #video-scrub-bar .icon-btn svg{width:15px;height:15px;}
-  #video-scrub-bar input[type=range]{flex:1 1 auto;height:26px;}
-  #video-scrub-bar input[type=range]::-webkit-slider-thumb{width:16px;height:16px;margin-top:-6px;border-width:2px;}
-  #video-scrub-bar #video-time{font-size:10px;color:var(--text-dim);white-space:nowrap;}
+  #video-scrub-bar .icon-btn{width:28px;height:28px;color:#fff;}
+  #video-scrub-bar input[type=range]{flex:1 1 auto;height:26px;accent-color:#fff;}
+  #video-scrub-bar #video-time{font-size:10px;color:#e8e8ea;white-space:nowrap;font-variant-numeric:tabular-nums;}
 
   .spinner-overlay{
     position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:15;
-    background:rgba(11,11,14,0.35);
+    background:rgba(255,255,255,0.6);
   }
   .spinner-overlay.show{display:flex;}
-  .spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--surface-3);border-top-color:var(--accent);animation:sp .7s linear infinite;}
+  .spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--surface-2);border-top-color:var(--ink);animation:sp .7s linear infinite;}
   @keyframes sp{to{transform:rotate(360deg);}}
 
-  /* ---------- CONTROL PANEL (mobile: fixed bottom-sheet overlay) ---------- */
-  #panel{
-    position:fixed;
-    left:0;right:0;bottom:0;
-    background:var(--surface);
-    border-top:1px solid var(--border);
-    border-radius:20px 20px 0 0;
-    max-height:66vh;
-    overflow-y:auto;
-    overscroll-behavior:contain;
-    padding:8px 12px calc(14px + var(--safe-b));
-    display:none;
-    transform:translateY(100%);
-    transition:transform .28s cubic-bezier(.32,.72,.33,1);
-    box-shadow:0 -14px 40px rgba(0,0,0,.55);
-    z-index:50;
+  /* ---------- BOTTOM PANEL ---------- */
+  #bottom-panel{
+    display:none;flex:0 0 auto;padding:6px 18px calc(16px + var(--safe-b));
+    background:var(--bg);border-top:1px solid var(--border);
   }
-  #panel.show{display:block;}
-  #panel.open{transform:translateY(0);}
-  #panel::-webkit-scrollbar{width:5px;}
-  #panel::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:5px;}
+  #bottom-panel.show{display:block;}
 
-  #panel-live-preview{
-    position:sticky;top:0;z-index:6;
-    display:flex;align-items:center;justify-content:center;
-    background:var(--bg);border-radius:var(--radius-md);
-    overflow:hidden;margin-bottom:10px;
-    border:1px solid var(--border);
-    height:118px;
-  }
-  #panel-live-preview canvas{max-width:100%;max-height:100%;display:block;}
-  #panel-live-preview .live-dot{
-    position:absolute;top:6px;left:8px;font-size:9.5px;letter-spacing:.5px;
-    color:var(--teal);background:rgba(0,0,0,0.5);padding:3px 7px;border-radius:99px;
-  }
+  .value-row{display:flex;justify-content:flex-end;padding:6px 2px 0;}
+  .value-row span{font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;}
 
-  #panel-backdrop{
-    position:fixed;inset:0;background:rgba(0,0,0,.55);
-    opacity:0;pointer-events:none;transition:opacity .25s ease;
-    z-index:45;
-  }
-  #panel-backdrop.show{opacity:1;pointer-events:auto;}
-
-  .drag-affordance{width:36px;height:4px;border-radius:99px;background:var(--surface-3);margin:0 auto 8px;cursor:pointer;}
-  .panel-head-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
-  .panel-head-row .panel-title{font-size:14px;font-weight:700;}
-
-  /* Floating "Pengaturan" button — the separate button to open settings */
-  .settings-fab{
-    position:absolute;left:50%;bottom:calc(14px + var(--safe-b));
-    transform:translateX(-50%);
-    display:flex;align-items:center;gap:8px;
-    padding:12px 20px;border-radius:999px;
-    background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);
-    font-size:13.5px;font-weight:700;
-    box-shadow:0 8px 26px rgba(0,0,0,.5);
-    z-index:12;
-    transition:transform .15s ease, background .15s ease, color .15s ease, border-color .15s ease;
-  }
-  .settings-fab svg{width:18px;height:18px;flex:0 0 auto;}
-  .settings-fab:active{transform:translateX(-50%) scale(.94);}
-  .settings-fab.active{background:var(--surface-2);color:var(--text);border-color:var(--border);}
-
-  .section{margin-bottom:4px;}
-  .section > summary{
-    list-style:none;cursor:pointer;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:10px 2px;font-size:12.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text-dim);
-    border-bottom:1px solid var(--border);
-  }
-  .section > summary::-webkit-details-marker{display:none;}
-  .section > summary .chev{width:14px;height:14px;transition:transform .2s ease;color:var(--text-faint);}
-  .section[open] > summary .chev{transform:rotate(180deg);}
-  .section-body{padding:12px 2px 6px;}
-
-  .chip-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;}
-  .chip-row::-webkit-scrollbar{display:none;}
-  .chip{
-    flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid var(--border);
-    background:var(--surface-2);color:var(--text-dim);font-size:12.5px;font-weight:600;
-    display:flex;align-items:center;gap:6px;transition:all .15s ease;
-  }
-  .chip svg{width:13px;height:13px;}
-  .chip.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
-  .fmt-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
-  .chip:active{transform:scale(.95);}
-
-  .slider-item{margin-bottom:16px;}
-  .slider-item:last-child{margin-bottom:2px;}
-  .slider-label{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:7px;color:var(--text);}
-  .slider-label .val{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;}
   input[type=range]{
-    -webkit-appearance:none;appearance:none;width:100%;height:34px;background:transparent;margin:0;
+    -webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin:0;
     touch-action:pan-y;
   }
   input[type=range]::-webkit-slider-runnable-track{
-    height:5px;border-radius:99px;
-    background:linear-gradient(90deg, var(--accent) 0%, var(--accent) var(--fill,50%), var(--surface-3) var(--fill,50%), var(--surface-3) 100%);
+    height:3px;border-radius:99px;
+    background:linear-gradient(90deg, var(--ink) 0%, var(--ink) var(--fill,30%), var(--surface-2) var(--fill,30%), var(--surface-2) 100%);
   }
   input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none;width:24px;height:24px;border-radius:50%;
-    background:var(--accent);border:3px solid #0e0e11;margin-top:-9.5px;
-    box-shadow:0 2px 6px rgba(0,0,0,.5);
+    -webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+    background:var(--ink);margin-top:-8.5px;box-shadow:0 1px 4px rgba(0,0,0,.3);
   }
-  input[type=range]::-moz-range-track{height:5px;border-radius:99px;background:var(--surface-3);}
-  input[type=range]::-moz-range-progress{height:5px;border-radius:99px;background:var(--accent);}
-  input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--accent);border:3px solid #0e0e11;}
+  input[type=range]::-moz-range-track{height:3px;border-radius:99px;background:var(--surface-2);}
+  input[type=range]::-moz-range-progress{height:3px;border-radius:99px;background:var(--ink);}
+  input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--ink);border:none;}
 
-  .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 2px;}
-  .toggle-row .lbl{font-size:13px;font-weight:600;}
-  .switch{width:44px;height:26px;border-radius:99px;background:var(--surface-3);position:relative;border:1px solid var(--border);flex:0 0 auto;}
-  .switch .dot{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--text-dim);transition:all .2s ease;}
-  .switch.on{background:var(--accent-dim);border-color:var(--accent);}
-  .switch.on .dot{left:20px;background:var(--accent);}
+  #tabs-row{
+    display:flex;padding:4px 2px 16px;gap:14px;
+    overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  #tabs-row::-webkit-scrollbar{display:none;}
+  .tab-btn{
+    font-size:12px;font-weight:700;letter-spacing:.4px;color:var(--text-faint);
+    padding:6px 2px;flex:0 0 auto;text-align:center;transition:color .15s ease;white-space:nowrap;
+  }
+  .tab-btn.active{color:var(--text);}
 
-  .btn-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-  .btn-grid .btn{flex-direction:column;padding:10px 4px;font-size:10.5px;font-weight:600;gap:5px;}
-  .btn-grid .btn svg{width:18px;height:18px;}
+  .seg-row{
+    display:flex;background:var(--surface);border-radius:999px;padding:4px;margin-bottom:12px;
+  }
+  .seg-btn{
+    flex:1 1 0;padding:9px 6px;border-radius:999px;font-size:12.5px;font-weight:700;
+    color:var(--text-dim);text-align:center;letter-spacing:.3px;transition:all .15s ease;
+  }
+  .seg-btn.active{background:var(--ink);color:#fff;}
+  .seg-btn:active{transform:scale(.97);}
 
-  .export-fmt-row{display:flex;gap:8px;margin-bottom:14px;}
-  .export-fmt-row .btn{flex:1;justify-content:center;}
-  .file-name-preview{font-size:11px;color:var(--text-faint);margin-top:8px;text-align:center;}
+  .opt-block{margin-bottom:14px;}
+  .opt-head{font-size:11.5px;font-weight:700;letter-spacing:.5px;color:var(--text-dim);margin-bottom:8px;}
+  .opt-row{display:flex;align-items:center;gap:10px;}
+  .seg-row-inline{flex:1 1 auto;margin-bottom:0;}
+  .swatches{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+  .swatch-input{
+    -webkit-appearance:none;appearance:none;width:30px;height:30px;border-radius:50%;
+    border:2px solid var(--border);padding:0;background:none;cursor:pointer;overflow:hidden;
+  }
+  .swatch-input::-webkit-color-swatch-wrapper{padding:0;}
+  .swatch-input::-webkit-color-swatch{border:none;border-radius:50%;}
+  .swatch-input::-moz-color-swatch{border:none;border-radius:50%;}
+
+  #canvas-stage.checker{
+    background-image:
+      linear-gradient(45deg,#e4e4e6 25%,transparent 25%),
+      linear-gradient(-45deg,#e4e4e6 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#e4e4e6 75%),
+      linear-gradient(-45deg,transparent 75%,#e4e4e6 75%);
+    background-size:18px 18px;
+    background-position:0 0,0 9px,9px -9px,-9px 0px;
+  }
+
+  #btn-export{
+    width:100%;padding:15px;border-radius:999px;background:var(--ink);color:#fff;
+    font-size:14.5px;font-weight:700;letter-spacing:1px;text-align:center;
+    transition:transform .12s ease, opacity .12s ease;
+  }
+  #btn-export:active{transform:scale(.98);}
+  #btn-export:disabled{opacity:.4;pointer-events:none;}
+
+  /* ---------- EXPORT PANEL (top-right dropdown) ---------- */
+  #export-panel-backdrop{
+    display:none;position:fixed;inset:0;background:rgba(20,20,22,0.32);z-index:39;
+  }
+  #export-panel-backdrop.show{display:block;}
+  #export-panel{
+    display:none;position:fixed;top:calc(64px + var(--safe-t));right:14px;width:min(320px, calc(100vw - 28px));
+    background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);
+    box-shadow:0 12px 36px rgba(20,20,22,0.18);padding:16px;z-index:40;
+    max-height:calc(100vh - 100px - var(--safe-t));overflow-y:auto;
+  }
+  #export-panel.show{display:block;animation:panel-in .16s ease;}
+  @keyframes panel-in{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+  .panel-title{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--text);margin:0 0 14px;text-transform:uppercase;}
+
+  #export-progress-wrap{display:none;margin-top:12px;}
+  #export-progress-wrap.show{display:block;}
+  .progress-label{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-dim);margin-bottom:6px;}
+  .progress-track{height:5px;border-radius:99px;background:var(--surface-2);overflow:hidden;}
+  .progress-bar{height:100%;width:0%;background:var(--ink);border-radius:99px;transition:width .1s linear;}
+  .link-cancel{display:block;text-align:center;font-size:12px;color:var(--text-dim);margin-top:10px;font-weight:600;}
 
   .hidden{display:none !important;}
 
-  /* Phones in landscape: keep controls beside the preview instead of
-     eating half the (very limited) vertical space below it. */
-  @media (orientation:landscape) and (max-height:520px){
-    main{flex-direction:row;}
-    #stage-wrap{flex:1 1 auto;min-width:0;}
-    #panel{
-      position:static;
-      transform:none;
-      transition:none;
-      box-shadow:none;
-      border-radius:0;
-      flex:0 0 250px;
-      max-height:none;
-      max-width:250px;
-      border-top:none;
-      border-left:1px solid var(--border);
-      padding:10px 12px calc(12px + var(--safe-b));
-    }
-    .drag-affordance, .panel-head-row, #panel-backdrop, .settings-fab, #panel-live-preview{display:none;}
-    header{padding-top:calc(6px + var(--safe-t));padding-bottom:6px;}
-    .brand-mark{width:24px;height:24px;}
-    .brand-text .tag{display:none;}
+  #workspace{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
+  @media (min-width:720px){
+    #stage-wrap{padding:24px;}
   }
-
-  @media (min-width:860px){
+  @media (min-width:980px){
     body{overflow:hidden;}
-    main{flex-direction:row;}
+    #workspace{flex-direction:row;}
     #stage-wrap{flex:1 1 auto;}
-    #panel{
-      position:static;
-      transform:none;
-      transition:none;
-      box-shadow:none;
-      border-radius:0;
-      flex:0 0 360px;
-      max-height:none;
-      max-width:360px;
-      border-top:none;
-      border-left:1px solid var(--border);
-      padding:16px 16px calc(20px + var(--safe-b));
-    }
-    .drag-affordance, .panel-head-row, #panel-backdrop, .settings-fab, #panel-live-preview{display:none;}
+    #bottom-panel{flex:0 0 360px;border-top:none;border-left:1px solid var(--border);padding:16px 20px calc(20px + var(--safe-b));overflow-y:auto;}
   }
-
-  /* Small phones: tighten up spacing and drop the tool grid to 2 columns */
-  @media (max-width:380px){
-    header{gap:6px;padding-left:10px;padding-right:10px;}
-    .brand-text .tag{display:none;}
-    .icon-btn{width:34px;height:34px;min-width:34px;}
-    .btn-grid{grid-template-columns:repeat(2,1fr);}
-    .upload-btn-row .btn{flex:1 1 auto;justify-content:center;}
-  }
-
-  /* Respect the home-indicator / gesture-bar area on notched phones */
-  #panel{padding-bottom:calc(14px + var(--safe-b));}
-  #side-actions-left, #side-actions-right{bottom:auto;}
-  #stage-stats-bar{bottom:calc(64px + var(--safe-b));}
-
-.info-link-row{
-  display:flex;flex-direction:column;gap:8px;
-}
-.info-link{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 14px;border-radius:var(--radius-md);
-  background:var(--surface-2);border:1px solid var(--border);
-  color:var(--text);font-size:13.5px;font-weight:600;
-  text-decoration:none;transition:background .15s ease,border-color .15s ease;
-}
-.info-link:hover{background:var(--surface-3);border-color:var(--accent-dim);}
-.info-link:active{transform:scale(.98);}
-.info-link svg{width:15px;height:15px;color:var(--text-faint);flex:0 0 auto;}
 </style>
 </head>
 <body>
@@ -428,12 +239,10 @@
 <header>
   <div class="brand">
     <svg class="brand-mark" viewBox="0 0 48 48" fill="none">
-      <path d="M24 24 C24 20 27 18 30 18 C35 18 38 22 38 27 C38 34 32 38 25 38 C16 38 10 31 10 22 C10 12 18 5 28 5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M24 24c1.6 0 2.9-1.3 2.9-2.9S25.6 18.2 24 18.2s-4.2 1.5-4.2 4.2 2.1 5.6 4.8 5.6 6.4-2.6 6.4-6.7-3.2-8-7.4-8-9.1 3.9-9.1 9.4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M38 8l1 2.6L41.6 12 39 13l-1 2.6L37 13l-2.6-1L37 10.6z" fill="currentColor"/>
     </svg>
-    <div class="brand-text">
-      <span class="name">Spiralist</span>
-      <span class="tag mono" id="brand-tag">photo → spiral art</span>
-    </div>
+    <span class="brand-name">SPIRALIST</span>
   </div>
   <div class="head-actions">
     <button class="icon-btn" id="btn-undo" title="Undo" disabled>
@@ -442,57 +251,73 @@
     <button class="icon-btn" id="btn-redo" title="Redo" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
     </button>
-    <button class="icon-btn hidden" id="btn-fullscreen" title="Fullscreen">
+    <button class="icon-btn" id="btn-fullscreen" title="Layar penuh">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-export-settings" title="Export">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
     </button>
   </div>
 </header>
 
+<div id="export-panel-backdrop"></div>
+<div id="export-panel">
+  <div class="opt-block">
+    <div class="opt-head"><span>Warna Motif</span></div>
+    <div class="opt-row">
+      <div class="seg-row seg-row-inline" id="color-mode-row"></div>
+      <div class="swatches" id="color-swatches"></div>
+    </div>
+  </div>
+
+  <div class="opt-block">
+    <div class="opt-head"><span>Background</span></div>
+    <div class="opt-row">
+      <div class="seg-row seg-row-inline" id="bg-mode-row"></div>
+      <div class="swatches" id="bg-swatches"></div>
+    </div>
+  </div>
+
+  <p class="panel-title">Format</p>
+  <div class="seg-row" id="format-row"></div>
+  <button id="btn-export">EXPORT</button>
+  <div id="export-progress-wrap">
+    <div class="progress-label"><span id="export-status">Memproses…</span><span id="export-pct">0%</span></div>
+    <div class="progress-track"><div class="progress-bar" id="export-bar"></div></div>
+    <button class="link-cancel" id="btn-export-cancel">Batal</button>
+  </div>
+</div>
+
 <main>
+  <div id="action-row">
+    <button class="pill-btn" id="btn-change-photo">Ganti foto</button>
+    <button class="pill-btn" id="btn-change-video">Ganti video</button>
+  </div>
+  <div id="workspace">
   <div id="stage-wrap">
     <div id="empty-state">
-      <svg class="up-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="6" y="8" width="36" height="30" rx="4"/>
-        <circle cx="17" cy="19" r="3.4"/>
-        <path d="M6 32l10-10 8 8 6-6 12 12"/>
+      <svg class="up-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="6" y="9" width="36" height="30" rx="2"/>
+        <path d="M6 32l9-9 8 8 7-7 9 9"/>
+        <circle cx="18" cy="18" r="2.6" fill="currentColor" stroke="none"/>
       </svg>
       <h2>Ubah foto atau video jadi seni spiral</h2>
       <p>Unggah foto atau video dari galeri, atau ambil foto langsung dari kamera. Semua diproses lokal di perangkatmu — file tidak pernah diunggah ke server.</p>
       <div class="upload-btn-row">
-        <button class="btn primary" id="btn-pick-gallery">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9"/><path d="m3 15 5-5 4 4 5-5 4 4"/><circle cx="8" cy="8" r="1.3"/></svg>
-          Upload Foto
-        </button>
-        <button class="btn ghost" id="btn-pick-video">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2.5"/><path d="m17 10 5-3v10l-5-3"/></svg>
-          Upload Video
-        </button>
-        <button class="btn ghost" id="btn-pick-camera">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
-          Kamera
-        </button>
+        <button class="btn-upload" id="btn-pick-gallery">Upload foto</button>
+        <button class="btn-upload" id="btn-pick-video">Upload video</button>
       </div>
       <div class="footer-links">
-        <a href="privasi.html">Kebijakan Privasi</a>
-        <span class="dot">·</span>
+        <a href="privasi.html">Kebijakan privasi</a>
+        <span class="dot">•</span>
         <a href="tentang.html">Tentang</a>
-        <span class="dot">·</span>
+        <span class="dot">•</span>
         <a href="kontak.html">Kontak</a>
       </div>
     </div>
 
     <div id="canvas-stage">
-      <div id="ba-labels"><span id="ba-after-label">Spiral</span></div>
-      <div id="canvas-transform">
-        <canvas id="canvas-before"></canvas>
-        <canvas id="canvas-after"></canvas>
-        <div id="ba-handle">
-          <div class="line"></div>
-          <div class="knob">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 7-5 5 5 5"/><path d="m15 7 5 5-5 5"/></svg>
-          </div>
-        </div>
-      </div>
+      <canvas id="canvas-after"></canvas>
       <div class="spinner-overlay" id="spinner"><div class="spinner"></div></div>
     </div>
 
@@ -502,178 +327,20 @@
         <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none;"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
       </button>
       <input type="range" id="video-scrub" min="0" max="1000" value="0" step="1">
-      <span class="mono" id="video-time">0:00 / 0:00</span>
+      <span id="video-time">0:00 / 0:00</span>
     </div>
-
-    <div id="side-actions-left" class="hidden">
-      <button class="icon-btn" id="btn-zoom-in" title="Zoom in">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6M8 11h6"/></svg>
-      </button>
-      <button class="icon-btn" id="btn-zoom-out" title="Zoom out">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></svg>
-      </button>
-    </div>
-    <div id="side-actions-right" class="hidden">
-      <button class="icon-btn" id="btn-fullscreen-stage" title="Layar penuh">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-      </button>
-      <button class="icon-btn" id="btn-fit" title="Fit to screen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-      </button>
-    </div>
-
-    <div id="stage-stats-bar" class="hidden mono">
-      <span><b>ORIGINAL</b> <em id="stat-original">–</em></span>
-      <span><b>OUTPUT</b> <em id="stat-output">–</em></span>
-      <span><b>ZOOM</b> <em id="stat-zoom">100%</em></span>
-    </div>
-
-    <button class="settings-fab hidden" id="btn-settings" title="Buka pengaturan">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 8v4l3 2"/></svg>
-      Pengaturan
-    </button>
   </div>
 
-  <div id="panel-backdrop"></div>
-
-  <div id="panel">
-    <div class="drag-affordance" id="panel-drag" title="Tutup"></div>
-    <div class="panel-head-row">
-      <span class="panel-title">Pengaturan</span>
-      <button class="icon-btn" id="btn-panel-close" title="Tutup pengaturan">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-      </button>
-    </div>
-
-    <div id="panel-live-preview">
-      <canvas id="panel-preview-canvas"></canvas>
-      <span class="live-dot mono">● LIVE</span>
-    </div>
-
-    <details class="section" open>
-      <summary>Mode Efek <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-      <div class="section-body">
-        <div class="chip-row" id="mode-row"></div>
-      </div>
-    </details>
-
-    <details class="section">
-      <summary>Preset <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-      <div class="section-body">
-        <div class="chip-row" id="preset-row"></div>
-      </div>
-    </details>
-
-    <details class="section" open>
-      <summary>Penyesuaian <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-      <div class="section-body" id="sliders-body"></div>
-    </details>
-
-    <details class="section">
-      <summary>Alat <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-      <div class="section-body">
-        <div class="btn-grid">
-          <button class="btn ghost" id="btn-reset">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
-            Reset
-          </button>
-          <button class="btn ghost" id="btn-random">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2"/><circle cx="15.5" cy="15.5" r="1.2"/><circle cx="15.5" cy="8.5" r="1.2"/><circle cx="8.5" cy="15.5" r="1.2"/></svg>
-            Acak
-          </button>
-          <button class="btn ghost" id="btn-change-photo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
-            <span id="btn-change-photo-label">Ganti Foto</span>
-          </button>
-          <button class="btn ghost" id="btn-fullscreen-panel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-            Layar Penuh
-          </button>
-        </div>
-      </div>
-    </details>
-
-    <details class="section" open>
-      <summary>Export <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-      <div class="section-body">
-        <div id="export-image-block">
-          <div class="export-fmt-row">
-            <button class="btn ghost fmt-btn active" data-fmt="png">PNG</button>
-            <button class="btn ghost fmt-btn" data-fmt="jpeg">JPG</button>
-            <button class="btn ghost fmt-btn" data-fmt="webp">WebP</button>
-          </div>
-          <div class="slider-item" id="quality-row">
-            <div class="slider-label"><span>Kualitas</span><span class="val" id="val-quality">90%</span></div>
-            <input type="range" id="in-quality" min="10" max="100" value="90" step="1">
-          </div>
-          <button class="btn primary" id="btn-export" style="width:100%;justify-content:center;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-            Simpan Gambar
-          </button>
-          <div class="file-name-preview mono" id="export-name">spiral-art.png</div>
-        </div>
-
-        <div id="export-video-block" class="hidden">
-          <div class="slider-label" style="margin-bottom:7px;"><span>Format</span></div>
-          <div class="export-fmt-row" id="video-format-row">
-            <button class="btn ghost fmt-btn active" data-format="webm">WebM</button>
-            <button class="btn ghost fmt-btn" data-format="mp4">MP4</button>
-          </div>
-          <div class="slider-label" style="margin-bottom:7px;"><span>Resolusi</span></div>
-          <div class="export-fmt-row" id="video-res-row">
-            <button class="btn ghost fmt-btn active" data-res="480">Standar</button>
-            <button class="btn ghost fmt-btn" data-res="720">HD</button>
-          </div>
-          <div class="slider-label" style="margin-bottom:7px;"><span>Frame Rate</span></div>
-          <div class="export-fmt-row" id="video-fps-row">
-            <button class="btn ghost fmt-btn active" data-fps="24">24 fps</button>
-            <button class="btn ghost fmt-btn" data-fps="30">30 fps</button>
-          </div>
-          <div class="toggle-row" style="padding-top:0;">
-            <span class="lbl">Sertakan Audio Asli</span>
-            <div class="switch on" id="switch-audio"><div class="dot"></div></div>
-          </div>
-          <div class="file-name-preview mono" id="video-export-note" style="margin-top:10px;margin-bottom:2px;">Diproses secara real-time — durasi proses ≈ durasi video. MP4 butuh langkah konversi tambahan di sebagian besar browser.</div>
-          <button class="btn primary" id="btn-export-video" style="width:100%;justify-content:center;margin-top:8px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-            Proses &amp; Unduh Video
-          </button>
-          <div id="video-export-progress-wrap" class="hidden" style="margin-top:12px;">
-            <div class="slider-label"><span id="video-export-status">Memproses…</span><span class="val" id="video-export-pct">0%</span></div>
-            <div style="height:6px;border-radius:99px;background:var(--surface-3);overflow:hidden;">
-              <div id="video-export-bar" style="height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .1s linear;"></div>
-            </div>
-            <button class="btn ghost small" id="btn-export-video-cancel" style="width:100%;justify-content:center;margin-top:10px;">Batal</button>
-          </div>
-          <div class="file-name-preview mono" id="export-video-name">spiral-video.webm</div>
-        </div>
-      </div>
-    </details>
-
-    <details class="section">
-      <summary>Info <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
-      <div class="section-body">
-        <div class="info-link-row">
-          <a class="info-link" href="privasi.html">
-            Kebijakan Privasi
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </a>
-          <a class="info-link" href="tentang.html">
-            Tentang
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </a>
-          <a class="info-link" href="kontak.html">
-            Kontak
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </a>
-        </div>
-      </div>
-    </details>
+  <div id="bottom-panel">
+    <div class="value-row"><span id="val-display">30%</span></div>
+    <input type="range" id="main-slider" min="0" max="100" value="30" step="1">
+    <div id="tabs-row"></div>
+    <div class="seg-row" id="style-row"></div>
+  </div>
   </div>
 </main>
 
 <input type="file" id="file-gallery" accept="image/jpeg,image/png,image/webp" class="hidden">
-<input type="file" id="file-camera" accept="image/*" capture="environment" class="hidden">
 <input type="file" id="file-video-gallery" accept="video/*" class="hidden">
 
 <script>
@@ -683,246 +350,223 @@
 /* ============================================================
    STATE
 ============================================================ */
-const DEFAULTS = {
-  mode:'spiral',
-  amount:60,
-  size:100,
-  thickness:3,
-  spacing:100,
-  contrast:110,
-  brightness:0,
-  threshold:50,
-  rotation:0,
-  detail:100,
-  smoothness:40,
-  invert:false
-};
+const CONST = { rotation:0, smoothness:35, threshold:50, invert:false };
+const DEFAULTS = Object.assign({
+  style:'spiral', amount:60, size:100, brightness:0, contrast:110,
+  spacing:100, thickness:3, detail:100,
+  colorMode:'solid', color1:'#141414', color2:'#a9895f',
+  bgMode:'solid', bgColor1:'#ffffff', bgColor2:'#e7e2d8'
+}, CONST);
 let state = Object.assign({}, DEFAULTS);
+
+const TABS = [
+  {key:'amount',     label:'RINGS',      min:10,  max:160},
+  {key:'size',       label:'SCALE',      min:50,  max:150},
+  {key:'spacing',    label:'SPACING',    min:40,  max:220},
+  {key:'thickness',  label:'THICKNESS',  min:1,   max:12},
+  {key:'detail',     label:'DETAIL',     min:40,  max:220},
+  {key:'brightness', label:'LIGHTNESS',  min:-50, max:50},
+  {key:'contrast',   label:'CONTRAST',   min:50,  max:200},
+];
+let activeTab = 0;
+
+const STYLES = [
+  {id:'spiral', label:'SPIRAL'},
+  {id:'lines',  label:'LINES'},
+  {id:'dots',   label:'DOTS'},
+];
 
 let history = [];
 let historyIdx = -1;
 let historyDebounce = null;
 
-let img = null;           // HTMLImageElement
-let lumPreview = null;    // {data:Float32Array, w,h}  luminance 0..1
+let img = null;
+let lumPreview = null;
 let naturalW = 0, naturalH = 0;
-let previewW = 0, previewH = 0; // internal canvas res for preview
+let previewW = 0, previewH = 0;
 
-let zoom = 1, panX = 0, panY = 0;
-let baSplit = 50; // before/after percentage
-
-/* ---- video mode ---- */
-let mediaType = 'image';       // 'image' | 'video'
-let videoEl = null;             // HTMLVideoElement (source, hidden)
+let mediaType = 'image';
+let videoEl = null;
 let videoObjectUrl = null;
 let videoDuration = 0;
 let videoPreviewLoopRunning = false;
 let videoPreviewPlaying = false;
 let lastPreviewFrameT = 0;
-const PREVIEW_FRAME_INTERVAL = 1000/18; // throttle preview redraw to ~18fps for perf
+const PREVIEW_FRAME_INTERVAL = 1000/18;
 
-let exportState = {
-  running:false,
-  cancelled:false,
-  resolution:480,
-  fps:24,
-  includeAudio:true,
-  format:'webm'
-};
-let exportRecorder = null, exportChunks = [], exportCanvas = null, exportCtx = null;
-let ffmpegInstance = null, ffmpegLoadingPromise = null;
+let imageFmt = 'png';
+let exportState = { running:false, cancelled:false, resolution:640, fps:24, includeAudio:true, format:'webm' };
+let exportRecorder=null, exportChunks=[], exportCanvas=null, exportCtx=null;
+let ffmpegInstance=null, ffmpegLoadingPromise=null;
 
 const $ = (id)=>document.getElementById(id);
-
 const els = {
   stageWrap: $('stage-wrap'),
   emptyState: $('empty-state'),
+  actionRow: $('action-row'),
   canvasStage: $('canvas-stage'),
-  canvasTransform: $('canvas-transform'),
-  before: $('canvas-before'),
   after: $('canvas-after'),
-  baHandle: $('ba-handle'),
-  baLabels: $('ba-labels'),
-  panel: $('panel'),
-  panelBackdrop: $('panel-backdrop'),
-  btnSettings: $('btn-settings'),
-  modeRow: $('mode-row'),
-  presetRow: $('preset-row'),
-  slidersBody: $('sliders-body'),
   spinner: $('spinner'),
-  sideLeft: $('side-actions-left'),
-  sideRight: $('side-actions-right'),
-  statsBar: $('stage-stats-bar'),
-  statOriginal: $('stat-original'),
-  statOutput: $('stat-output'),
-  statZoom: $('stat-zoom'),
-  panelPreview: $('panel-preview-canvas'),
-  brandTag: $('brand-tag'),
   scrubBar: $('video-scrub-bar'),
   scrubInput: $('video-scrub'),
   scrubTime: $('video-time'),
   btnPreviewPlayPause: $('btn-preview-playpause'),
   iconPlay: $('icon-play'),
   iconPause: $('icon-pause'),
-  changePhotoLabel: $('btn-change-photo-label'),
-  exportImageBlock: $('export-image-block'),
-  exportVideoBlock: $('export-video-block'),
+  bottomPanel: $('bottom-panel'),
+  valDisplay: $('val-display'),
+  mainSlider: $('main-slider'),
+  tabsRow: $('tabs-row'),
+  styleRow: $('style-row'),
+  formatRow: $('format-row'),
+  btnExport: $('btn-export'),
+  exportProgressWrap: $('export-progress-wrap'),
+  exportStatus: $('export-status'),
+  exportPct: $('export-pct'),
+  exportBar: $('export-bar'),
 };
-const ctxPanelPreview = els.panelPreview.getContext('2d');
-const ctxBefore = els.before.getContext('2d');
-const ctxAfter = els.after.getContext('2d', {willReadFrequently:false});
+const ctxAfter = els.after.getContext('2d');
 
 /* ============================================================
-   ICONS for modes
+   BUILD CONTROLS
 ============================================================ */
-function svgIcon(path){
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+path+'</svg>';
+function buildTabs(){
+  els.tabsRow.innerHTML = TABS.map((t,i)=>`<button class="tab-btn" data-i="${i}">${t.label}</button>`).join('');
+  els.tabsRow.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      activeTab = parseInt(btn.dataset.i,10);
+      syncTabs();
+    });
+  });
+  syncTabs();
 }
-const ICON_SPIRAL = svgIcon('<path d="M12 12c1 0 1.8-.8 1.8-1.8S13 8.4 12 8.4s-2.6.9-2.6 2.6 1.3 3.5 3 3.5 4-1.6 4-4.2-2-5-4.6-5-5.7 2.4-5.7 5.9 3 6.6 6.3 6.6 7-3.1 7-6.9"/>');
-const ICON_RINGS = svgIcon('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="10"/>');
-const ICON_CIRC = svgIcon('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>');
-const ICON_WAVE = svgIcon('<path d="M2 12c1.5-4 3.5-4 5 0s3.5 4 5 0 3.5-4 5 0 3.5 4 5 0"/>');
-const ICON_TIGHT = svgIcon('<circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="9.5"/>');
-const ICON_LOOSE = svgIcon('<circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="10"/>');
-const ICON_BW = svgIcon('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 3v18"/>');
-const ICON_INV = svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" stroke="none"/>');
-const ICON_VLINES = svgIcon('<path d="M5 3v18M10 3v18M14 3v18M19 3v18"/>');
-const ICON_HLINES = svgIcon('<path d="M3 5h18M3 10h18M3 14h18M3 19h18"/>');
-const ICON_GRID = svgIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>');
+function syncTabs(){
+  els.tabsRow.querySelectorAll('.tab-btn').forEach(b=>{
+    const isActive = parseInt(b.dataset.i,10)===activeTab;
+    b.classList.toggle('active', isActive);
+    if(isActive) b.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+  });
+  const t = TABS[activeTab];
+  els.mainSlider.min = t.min; els.mainSlider.max = t.max;
+  els.mainSlider.value = state[t.key];
+  updateSliderVisual();
+}
+function updateSliderVisual(){
+  const t = TABS[activeTab];
+  const val = state[t.key];
+  const pct = Math.round(((val - t.min) / (t.max - t.min)) * 100);
+  els.mainSlider.style.setProperty('--fill', pct+'%');
+  els.valDisplay.textContent = pct + '%';
+}
+els.mainSlider.addEventListener('input', ()=>{
+  const t = TABS[activeTab];
+  state[t.key] = parseFloat(els.mainSlider.value);
+  updateSliderVisual();
+  scheduleRender();
+});
+els.mainSlider.addEventListener('change', ()=> pushHistory());
 
-const MODES = [
-  {id:'spiral', label:'Spiral', icon:ICON_SPIRAL},
-  {id:'rings', label:'Concentric Rings', icon:ICON_RINGS},
-  {id:'circular-lines', label:'Circular Lines', icon:ICON_CIRC},
-  {id:'wave-spiral', label:'Wave Spiral', icon:ICON_WAVE},
-  {id:'tight-spiral', label:'Tight Spiral', icon:ICON_TIGHT},
-  {id:'loose-spiral', label:'Loose Spiral', icon:ICON_LOOSE},
-  {id:'lines-v', label:'Garis Vertikal', icon:ICON_VLINES},
-  {id:'lines-h', label:'Garis Horizontal', icon:ICON_HLINES},
-  {id:'grid', label:'Kotak / Grid', icon:ICON_GRID},
-  {id:'bw', label:'Black & White', icon:ICON_BW},
-  {id:'inverted', label:'Inverted', icon:ICON_INV},
-];
+function buildStyleRow(){
+  els.styleRow.innerHTML = STYLES.map(s=>`<button class="seg-btn" data-style="${s.id}">${s.label}</button>`).join('');
+  els.styleRow.querySelectorAll('.seg-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.style = btn.dataset.style;
+      syncStyleRow();
+      scheduleRender();
+      pushHistory();
+    });
+  });
+  syncStyleRow();
+}
+function syncStyleRow(){
+  els.styleRow.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active', b.dataset.style===state.style));
+}
 
-const PRESETS = {
-  'Classic Spiral':  {mode:'spiral', amount:60, size:100, thickness:3, spacing:100, contrast:110, brightness:0, threshold:50, rotation:0, detail:100, smoothness:40, invert:false},
-  'Deep Black':      {mode:'spiral', amount:70, size:100, thickness:4.5, spacing:90, contrast:140, brightness:-8, threshold:65, rotation:0, detail:110, smoothness:35, invert:false},
-  'Soft Spiral':     {mode:'spiral', amount:45, size:95, thickness:2, spacing:110, contrast:90, brightness:5, threshold:35, rotation:0, detail:90, smoothness:70, invert:false},
-  'Portrait':        {mode:'spiral', amount:80, size:105, thickness:2.6, spacing:80, contrast:125, brightness:4, threshold:48, rotation:0, detail:130, smoothness:55, invert:false},
-  'High Detail':     {mode:'spiral', amount:140, size:100, thickness:1.6, spacing:60, contrast:115, brightness:0, threshold:40, rotation:0, detail:150, smoothness:25, invert:false},
-  'Strong Contrast': {mode:'rings', amount:80, size:100, thickness:4, spacing:100, contrast:170, brightness:0, threshold:60, rotation:0, detail:110, smoothness:20, invert:false},
-  'Minimal':         {mode:'circular-lines', amount:20, size:90, thickness:1.4, spacing:160, contrast:100, brightness:0, threshold:45, rotation:0, detail:70, smoothness:60, invert:false},
-  'Inverted':        {mode:'spiral', amount:60, size:100, thickness:3, spacing:100, contrast:110, brightness:0, threshold:50, rotation:0, detail:100, smoothness:40, invert:true},
-  'Tight Lines':     {mode:'tight-spiral', amount:110, size:100, thickness:1.8, spacing:50, contrast:120, brightness:0, threshold:45, rotation:0, detail:140, smoothness:30, invert:false},
-  'Wide Lines':      {mode:'loose-spiral', amount:35, size:105, thickness:5.5, spacing:180, contrast:110, brightness:0, threshold:50, rotation:0, detail:80, smoothness:45, invert:false},
-};
-
-const SLIDERS = [
-  {key:'amount', label:'Spiral Amount', min:10, max:200, step:1, unit:''},
-  {key:'size', label:'Spiral Size', min:50, max:150, step:1, unit:'%'},
-  {key:'thickness', label:'Line Thickness', min:0.5, max:8, step:0.1, unit:'px'},
-  {key:'spacing', label:'Spacing', min:20, max:200, step:1, unit:'%'},
-  {key:'contrast', label:'Contrast', min:50, max:200, step:1, unit:'%'},
-  {key:'brightness', label:'Brightness', min:-50, max:50, step:1, unit:''},
-  {key:'threshold', label:'Threshold', min:0, max:100, step:1, unit:''},
-  {key:'rotation', label:'Rotation', min:0, max:360, step:1, unit:'°'},
-  {key:'detail', label:'Detail', min:20, max:150, step:1, unit:'%'},
-  {key:'smoothness', label:'Smoothness', min:0, max:100, step:1, unit:''},
-];
-
-/* ============================================================
-   BUILD UI
-============================================================ */
-function buildModeChips(){
-  els.modeRow.innerHTML = MODES.map(m=>
-    `<button class="chip" data-mode="${m.id}">${m.icon}<span>${m.label}</span></button>`
-  ).join('');
-  els.modeRow.querySelectorAll('.chip').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      state.mode = chip.dataset.mode;
-      syncModeChips();
+function buildColorRow(){
+  const modes = [{id:'solid',label:'SOLID'},{id:'gradient',label:'GRADIENT'}];
+  $('color-mode-row').innerHTML = modes.map(m=>`<button class="seg-btn" data-mode="${m.id}">${m.label}</button>`).join('');
+  $('color-mode-row').querySelectorAll('.seg-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.colorMode = btn.dataset.mode;
+      syncColorRow();
       scheduleRender(true);
       pushHistory();
     });
   });
-  syncModeChips();
+  syncColorRow();
 }
-function syncModeChips(){
-  els.modeRow.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active', c.dataset.mode===state.mode));
+function syncColorRow(){
+  $('color-mode-row').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active', b.dataset.mode===state.colorMode));
+  const wrap = $('color-swatches');
+  wrap.innerHTML = `<input type="color" class="swatch-input" id="color1-input" value="${state.color1}">` +
+    (state.colorMode==='gradient' ? `<input type="color" class="swatch-input" id="color2-input" value="${state.color2}">` : '');
+  $('color1-input').addEventListener('input', e=>{ state.color1 = e.target.value; scheduleRender(true); });
+  $('color1-input').addEventListener('change', ()=> pushHistory());
+  if(state.colorMode==='gradient'){
+    $('color2-input').addEventListener('input', e=>{ state.color2 = e.target.value; scheduleRender(true); });
+    $('color2-input').addEventListener('change', ()=> pushHistory());
+  }
 }
 
-function buildPresetChips(){
-  els.presetRow.innerHTML = Object.keys(PRESETS).map(name=>
-    `<button class="chip" data-preset="${name}">${name}</button>`
-  ).join('');
-  els.presetRow.querySelectorAll('.chip').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      applyPreset(chip.dataset.preset);
+function buildBgRow(){
+  const modes = [{id:'solid',label:'SOLID'},{id:'gradient',label:'GRADIENT'},{id:'transparent',label:'TRANSPARAN'}];
+  $('bg-mode-row').innerHTML = modes.map(m=>`<button class="seg-btn" data-mode="${m.id}">${m.label}</button>`).join('');
+  $('bg-mode-row').querySelectorAll('.seg-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.bgMode = btn.dataset.mode;
+      syncBgRow();
+      scheduleRender(true);
+      pushHistory();
+    });
+  });
+  syncBgRow();
+}
+function syncBgRow(){
+  $('bg-mode-row').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active', b.dataset.mode===state.bgMode));
+  els.canvasStage.classList.toggle('checker', state.bgMode==='transparent');
+  const wrap = $('bg-swatches');
+  if(state.bgMode==='transparent'){ wrap.innerHTML=''; return; }
+  wrap.innerHTML = `<input type="color" class="swatch-input" id="bgcolor1-input" value="${state.bgColor1}">` +
+    (state.bgMode==='gradient' ? `<input type="color" class="swatch-input" id="bgcolor2-input" value="${state.bgColor2}">` : '');
+  $('bgcolor1-input').addEventListener('input', e=>{ state.bgColor1 = e.target.value; scheduleRender(true); });
+  $('bgcolor1-input').addEventListener('change', ()=> pushHistory());
+  if(state.bgMode==='gradient'){
+    $('bgcolor2-input').addEventListener('input', e=>{ state.bgColor2 = e.target.value; scheduleRender(true); });
+    $('bgcolor2-input').addEventListener('change', ()=> pushHistory());
+  }
+}
+
+function buildFormatRow(){
+  const opts = mediaType==='video'
+    ? [{id:'webm',label:'WEBM'},{id:'mp4',label:'MP4'}]
+    : [{id:'png',label:'PNG'},{id:'jpeg',label:'JPG'},{id:'webp',label:'WEBP'}];
+  els.formatRow.innerHTML = opts.map(o=>`<button class="seg-btn" data-fmt="${o.id}">${o.label}</button>`).join('');
+  const current = mediaType==='video' ? exportState.format : imageFmt;
+  els.formatRow.querySelectorAll('.seg-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.fmt===current);
+    btn.addEventListener('click', ()=>{
+      els.formatRow.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      if(mediaType==='video') exportState.format = btn.dataset.fmt;
+      else imageFmt = btn.dataset.fmt;
     });
   });
 }
-function applyPreset(name){
-  const p = PRESETS[name];
-  if(!p) return;
-  state = Object.assign({}, state, p);
-  refreshAllControls();
-  scheduleRender(true);
-  pushHistory();
-}
 
-function buildSliders(){
-  els.slidersBody.innerHTML = SLIDERS.map(s=>`
-    <div class="slider-item">
-      <div class="slider-label"><span>${s.label}</span><span class="val" id="val-${s.key}"></span></div>
-      <input type="range" id="in-${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${state[s.key]}">
-    </div>
-  `).join('') + `
-    <div class="toggle-row">
-      <span class="lbl">Invert</span>
-      <div class="switch" id="switch-invert"><div class="dot"></div></div>
-    </div>
-  `;
-  SLIDERS.forEach(s=>{
-    const inp = $('in-'+s.key);
-    inp.addEventListener('input', ()=>{
-      state[s.key] = parseFloat(inp.value);
-      updateSliderVisual(s);
-      scheduleRender(false);
-    });
-    inp.addEventListener('change', ()=>{ pushHistory(); });
-    updateSliderVisual(s);
-  });
-  const sw = $('switch-invert');
-  sw.addEventListener('click', ()=>{
-    state.invert = !state.invert;
-    sw.classList.toggle('on', state.invert);
-    scheduleRender(true);
-    pushHistory();
-  });
-  sw.classList.toggle('on', state.invert);
-}
-function updateSliderVisual(s){
-  const inp = $('in-'+s.key);
-  const val = state[s.key];
-  const pct = ((val - s.min) / (s.max - s.min)) * 100;
-  inp.style.setProperty('--fill', pct+'%');
-  $('val-'+s.key).textContent = (s.step<1? val.toFixed(1): Math.round(val)) + s.unit;
-}
 function refreshAllControls(){
-  syncModeChips();
-  SLIDERS.forEach(s=>{
-    $('in-'+s.key).value = state[s.key];
-    updateSliderVisual(s);
-  });
-  $('switch-invert').classList.toggle('on', state.invert);
+  syncTabs();
+  syncStyleRow();
+  syncColorRow();
+  syncBgRow();
 }
 
-buildModeChips();
-buildPresetChips();
-buildSliders();
+buildTabs();
+buildStyleRow();
+buildColorRow();
+buildBgRow();
 
 /* ============================================================
-   HISTORY (undo/redo)
+   HISTORY
 ============================================================ */
 function pushHistory(){
   clearTimeout(historyDebounce);
@@ -958,46 +602,13 @@ $('btn-redo').addEventListener('click', ()=>{
 });
 
 /* ============================================================
-   SETTINGS PANEL (bottom-sheet on mobile)
-============================================================ */
-function setPanelOpen(open){
-  els.panel.classList.toggle('open', open);
-  els.panelBackdrop.classList.toggle('show', open);
-  els.btnSettings.classList.toggle('active', open);
-}
-els.btnSettings.addEventListener('click', ()=>{
-  setPanelOpen(!els.panel.classList.contains('open'));
-});
-els.panelBackdrop.addEventListener('click', ()=> setPanelOpen(false));
-$('btn-panel-close').addEventListener('click', ()=> setPanelOpen(false));
-$('panel-drag').addEventListener('click', ()=> setPanelOpen(false));
-
-// swipe the sheet down to close it
-(function(){
-  let startY=null, startedAtTop=false;
-  els.panel.addEventListener('touchstart', e=>{
-    startY = e.touches[0].clientY;
-    startedAtTop = els.panel.scrollTop <= 0;
-  }, {passive:true});
-  els.panel.addEventListener('touchmove', e=>{
-    if(startY===null || !startedAtTop) return;
-    const dy = e.touches[0].clientY - startY;
-    if(dy>70) setPanelOpen(false);
-  }, {passive:true});
-  els.panel.addEventListener('touchend', ()=>{ startY=null; });
-})();
-
-/* ============================================================
-   MEDIA LOADING (image + video)
+   MEDIA LOADING
 ============================================================ */
 $('btn-pick-gallery').addEventListener('click', ()=> $('file-gallery').click());
 $('btn-pick-video').addEventListener('click', ()=> $('file-video-gallery').click());
-$('btn-pick-camera').addEventListener('click', ()=> $('file-camera').click());
-$('btn-change-photo').addEventListener('click', ()=>{
-  (mediaType==='video' ? $('file-video-gallery') : $('file-gallery')).click();
-});
+$('btn-change-photo').addEventListener('click', ()=> $('file-gallery').click());
+$('btn-change-video').addEventListener('click', ()=> $('file-video-gallery').click());
 $('file-gallery').addEventListener('change', e=> handleFile(e.target.files[0]));
-$('file-camera').addEventListener('change', e=> handleFile(e.target.files[0]));
 $('file-video-gallery').addEventListener('change', e=> handleFile(e.target.files[0]));
 
 els.stageWrap.addEventListener('dragover', e=>{ e.preventDefault(); els.stageWrap.classList.add('dragover'); });
@@ -1031,51 +642,37 @@ function handleImageFile(file){
   reader.readAsDataURL(file);
 }
 
+function showMediaChrome(){
+  els.emptyState.style.display = 'none';
+  els.actionRow.classList.add('show');
+  els.canvasStage.classList.add('show');
+  els.bottomPanel.classList.add('show');
+}
+
 function onImageReady(){
   mediaType = 'image';
   if(videoEl){ videoEl.pause(); videoEl.src=''; videoEl=null; }
   if(videoObjectUrl){ URL.revokeObjectURL(videoObjectUrl); videoObjectUrl=null; }
-  els.emptyState.style.display = 'none';
-  els.canvasStage.classList.add('show');
-  els.panel.classList.add('show');
-  els.sideLeft.classList.remove('hidden');
-  els.sideRight.classList.remove('hidden');
-  els.statsBar.classList.remove('hidden');
-  els.btnSettings.classList.remove('hidden');
-  $('btn-fullscreen').classList.remove('hidden');
+  showMediaChrome();
   els.scrubBar.classList.add('hidden');
-  els.changePhotoLabel.textContent = 'Ganti Foto';
-  els.brandTag.textContent = 'photo → spiral art';
-  els.exportImageBlock.classList.remove('hidden');
-  els.exportVideoBlock.classList.add('hidden');
-  els.statOriginal.textContent = naturalW+'×'+naturalH;
 
-  // build preview-res luminance buffer
-  const maxDim = 640;
+  const maxDim = 1100;
   const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
   previewW = Math.max(1, Math.round(naturalW*scale));
   previewH = Math.max(1, Math.round(naturalH*scale));
-  els.statOutput.textContent = previewW+'×'+previewH;
-  els.panelPreview.width = previewW;
-  els.panelPreview.height = previewH;
+  els.after.width = previewW; els.after.height = previewH;
 
   lumPreview = buildLumBuffer(img, previewW, previewH);
 
-  // size canvases
-  [els.before, els.after].forEach(c=>{ c.width = previewW; c.height = previewH; });
-  ctxBefore.drawImage(img, 0, 0, previewW, previewH);
-
-  updateDisplaySize();
-  fitToScreen();
   state = Object.assign({}, DEFAULTS);
   refreshAllControls();
+  buildFormatRow();
   history = []; historyIdx=-1;
   scheduleRender(true);
   pushHistory();
   showSpinner(false);
 }
 
-/* ---------------- VIDEO ---------------- */
 function handleVideoFile(file){
   showSpinner(true);
   stopVideoPreviewLoop();
@@ -1083,15 +680,10 @@ function handleVideoFile(file){
   const url = URL.createObjectURL(file);
   videoObjectUrl = url;
   const v = document.createElement('video');
-  v.src = url;
-  v.muted = true;
-  v.playsInline = true;
-  v.loop = true;
-  v.crossOrigin = 'anonymous';
+  v.src = url; v.muted = true; v.playsInline = true; v.loop = true; v.crossOrigin = 'anonymous';
   v.addEventListener('loadedmetadata', ()=>{
     videoEl = v;
-    naturalW = v.videoWidth;
-    naturalH = v.videoHeight;
+    naturalW = v.videoWidth; naturalH = v.videoHeight;
     videoDuration = v.duration || 0;
     onVideoReady();
   }, {once:true});
@@ -1103,38 +695,19 @@ function handleVideoFile(file){
 
 function onVideoReady(){
   mediaType = 'video';
-  img = null; // spiral image mode not active
-
-  els.emptyState.style.display = 'none';
-  els.canvasStage.classList.add('show');
-  els.panel.classList.add('show');
-  els.sideLeft.classList.remove('hidden');
-  els.sideRight.classList.remove('hidden');
-  els.statsBar.classList.remove('hidden');
-  els.btnSettings.classList.remove('hidden');
-  $('btn-fullscreen').classList.remove('hidden');
+  img = null;
+  showMediaChrome();
   els.scrubBar.classList.remove('hidden');
-  els.changePhotoLabel.textContent = 'Ganti Video';
-  els.brandTag.textContent = 'video → spiral art';
-  els.exportImageBlock.classList.add('hidden');
-  els.exportVideoBlock.classList.remove('hidden');
-  els.statOriginal.textContent = naturalW+'×'+naturalH;
 
-  // lower preview res than image mode: video re-samples luminance every frame
-  const maxDim = 480;
+  const maxDim = 640;
   const scale = Math.min(1, maxDim / Math.max(naturalW, naturalH));
   previewW = Math.max(1, Math.round(naturalW*scale));
   previewH = Math.max(1, Math.round(naturalH*scale));
-  els.statOutput.textContent = previewW+'×'+previewH;
-  els.panelPreview.width = previewW;
-  els.panelPreview.height = previewH;
+  els.after.width = previewW; els.after.height = previewH;
 
-  [els.before, els.after].forEach(c=>{ c.width = previewW; c.height = previewH; });
-
-  updateDisplaySize();
-  fitToScreen();
   state = Object.assign({}, DEFAULTS);
   refreshAllControls();
+  buildFormatRow();
   history = []; historyIdx=-1;
   pushHistory();
 
@@ -1149,7 +722,6 @@ function onVideoReady(){
   showSpinner(false);
 }
 
-/* continuously redraw canvas-before/after from the live video element */
 function startVideoPreviewLoop(){
   if(videoPreviewLoopRunning) return;
   videoPreviewLoopRunning = true;
@@ -1170,17 +742,12 @@ function startVideoPreviewLoop(){
   }
   requestAnimationFrame(loop);
 }
-function stopVideoPreviewLoop(){
-  videoPreviewLoopRunning = false;
-}
+function stopVideoPreviewLoop(){ videoPreviewLoopRunning = false; }
 
 function renderVideoFrame(){
   if(!videoEl || !previewW) return;
-  ctxBefore.drawImage(videoEl, 0, 0, previewW, previewH);
   lumPreview = buildLumBuffer(videoEl, previewW, previewH);
   render(ctxAfter, previewW, previewH, lumPreview);
-  ctxPanelPreview.clearRect(0,0,previewW,previewH);
-  ctxPanelPreview.drawImage(els.after, 0, 0);
 }
 
 function updateVideoTimeLabel(){
@@ -1188,19 +755,16 @@ function updateVideoTimeLabel(){
   const fmt = s=>{ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
   els.scrubTime.textContent = fmt(videoEl.currentTime)+' / '+fmt(videoDuration);
 }
-
 function syncPreviewPlayIcon(){
   els.iconPlay.style.display = videoPreviewPlaying ? 'none':'block';
   els.iconPause.style.display = videoPreviewPlaying ? 'block':'none';
 }
-
 els.btnPreviewPlayPause.addEventListener('click', ()=>{
   if(!videoEl) return;
   videoPreviewPlaying = !videoPreviewPlaying;
   if(videoPreviewPlaying) videoEl.play().catch(()=>{}); else videoEl.pause();
   syncPreviewPlayIcon();
 });
-
 els.scrubInput.addEventListener('input', ()=>{
   if(!videoEl || !videoDuration) return;
   videoPreviewPlaying = false;
@@ -1208,36 +772,12 @@ els.scrubInput.addEventListener('input', ()=>{
   syncPreviewPlayIcon();
   videoEl.currentTime = (els.scrubInput.value/1000)*videoDuration;
   updateVideoTimeLabel();
-  // draw the exact scrubbed frame once it's seeked
   videoEl.addEventListener('seeked', renderVideoFrame, {once:true});
 });
 
-/* Compute the exact on-screen box for the canvases so they always
-   letterbox correctly inside the stage, and stay correct across
-   window resize, orientation change, and fullscreen toggles. */
-function updateDisplaySize(){
-  if((!img && !videoEl) || !previewW) return;
-  const padding = 28;
-  const availW = Math.max(60, els.stageWrap.clientWidth - padding);
-  const availH = Math.max(60, els.stageWrap.clientHeight - padding);
-  const ar = previewW / previewH;
-  let dispW = availW, dispH = dispW / ar;
-  if(dispH > availH){ dispH = availH; dispW = dispH * ar; }
-  els.canvasTransform.style.width = Math.round(dispW) + 'px';
-  els.canvasTransform.style.height = Math.round(dispH) + 'px';
-}
-
-let resizeDebounce=null;
-function onViewportChange(){
-  clearTimeout(resizeDebounce);
-  resizeDebounce = setTimeout(()=>{
-    updateDisplaySize();
-  }, 80);
-}
-window.addEventListener('resize', onViewportChange);
-window.addEventListener('orientationchange', onViewportChange);
-document.addEventListener('fullscreenchange', onViewportChange);
-
+/* ============================================================
+   LUMINANCE
+============================================================ */
 function buildLumBuffer(image, w, h){
   const off = document.createElement('canvas');
   off.width = w; off.height = h;
@@ -1250,8 +790,6 @@ function buildLumBuffer(image, w, h){
   }
   return {data, w, h};
 }
-
-/* bilinear sample, nx/ny normalized 0..1 */
 function sampleLum(buf, nx, ny){
   let x = nx*(buf.w-1), y = ny*(buf.h-1);
   if(x<0)x=0; if(y<0)y=0; if(x>buf.w-1)x=buf.w-1; if(y>buf.h-1)y=buf.h-1;
@@ -1265,38 +803,12 @@ function sampleLum(buf, nx, ny){
   const b = v01*(1-fx)+v11*fx;
   return a*(1-fy)+b*fy;
 }
-
-/* ============================================================
-   RENDER ENGINE
-============================================================ */
-let rafPending = false;
-function scheduleRender(immediate){
-  if(mediaType==='video'){
-    // the preview loop redraws continuously while playing; if paused,
-    // force one immediate redraw of the current frame so slider tweaks
-    // are reflected right away.
-    if(!videoPreviewPlaying) renderVideoFrame();
-    return;
-  }
-  if(!img) return;
-  if(rafPending) return;
-  rafPending = true;
-  requestAnimationFrame(()=>{
-    rafPending = false;
-    render(ctxAfter, previewW, previewH, lumPreview);
-    ctxPanelPreview.clearRect(0,0,previewW,previewH);
-    ctxPanelPreview.drawImage(els.after, 0, 0);
-  });
-}
-
 function gammaFromThreshold(threshold){
-  // threshold 0..100 -> gamma range 2.4 (sparse, only very dark) .. 0.35 (dense)
   const t = threshold/100;
   return 2.4 - t*2.05;
 }
-
 function darknessAt(nx, ny, buf, st){
-  const raw = sampleLum(buf, nx, ny); // 0..1 light amount
+  const raw = sampleLum(buf, nx, ny);
   const contrastFactor = st.contrast/100;
   let v = (raw-0.5)*contrastFactor + 0.5 + (st.brightness/100);
   if(v<0)v=0; if(v>1)v=1;
@@ -1307,333 +819,177 @@ function darknessAt(nx, ny, buf, st){
   return dark;
 }
 
-function bgAndStroke(st){
-  if(st.invert) return {bg:'#0f0e10', stroke:'#f3efe6'};
-  return {bg:'#f6f3ec', stroke:'#151414'};
+/* ============================================================
+   RENDER ENGINE — connected spiral / rings, plus a dedicated dot style
+============================================================ */
+let rafPending = false;
+function scheduleRender(immediate){
+  if(mediaType==='video'){
+    if(!videoPreviewPlaying) renderVideoFrame();
+    return;
+  }
+  if(!img) return;
+  if(rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(()=>{
+    rafPending = false;
+    render(ctxAfter, previewW, previewH, lumPreview);
+  });
+}
+
+function makeArtFill(ctx, st, W, H, cx, cy, minDim){
+  if(st.colorMode!=='gradient') return st.color1;
+  const g = ctx.createRadialGradient(cx,cy,0,cx,cy,minDim/2);
+  g.addColorStop(0, st.color1);
+  g.addColorStop(1, st.color2);
+  return g;
+}
+function makeBgFill(ctx, st, W, H){
+  if(st.bgMode==='transparent') return null;
+  if(st.bgMode==='gradient'){
+    const g = ctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0, st.bgColor1);
+    g.addColorStop(1, st.bgColor2);
+    return g;
+  }
+  return st.bgColor1;
 }
 
 function render(ctx, W, H, buf){
   const st = state;
-  const {bg, stroke} = bgAndStroke(st);
+  const cx = W/2, cy = H/2;
+  const minDim = Math.min(W,H);
   ctx.save();
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = bg;
-  ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle = stroke;
-  ctx.lineCap = 'round';
-
-  const minDim = Math.min(W,H);
-  const cx = W/2, cy = H/2;
-
-  switch(st.mode){
-    case 'bw': drawPlain(ctx,W,H,buf,st,false); break;
-    case 'inverted': drawPlain(ctx,W,H,buf,st,true); break;
-    case 'rings': drawRings(ctx,W,H,buf,st,cx,cy,minDim,true); break;
-    case 'circular-lines': drawRings(ctx,W,H,buf,st,cx,cy,minDim,false); break;
-    case 'wave-spiral': drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,{wave:1, spacingMult:1}); break;
-    case 'tight-spiral': drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,{wave:0, spacingMult:0.45}); break;
-    case 'loose-spiral': drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,{wave:0, spacingMult:2.0}); break;
-    case 'lines-v': drawLines(ctx,W,H,buf,st,cx,cy,'v'); break;
-    case 'lines-h': drawLines(ctx,W,H,buf,st,cx,cy,'h'); break;
-    case 'grid':
-      drawLines(ctx,W,H,buf,st,cx,cy,'v');
-      drawLines(ctx,W,H,buf,st,cx,cy,'h');
-      break;
+  const bgFill = makeBgFill(ctx, st, W, H);
+  if(bgFill){ ctx.fillStyle = bgFill; ctx.fillRect(0,0,W,H); }
+  ctx.fillStyle = makeArtFill(ctx, st, W, H, cx, cy, minDim);
+  ctx.strokeStyle = ctx.fillStyle;
+  switch(st.style){
+    case 'lines': drawRingsConnected(ctx,W,H,buf,st,cx,cy,minDim); break;
+    case 'dots':  drawDotsPattern(ctx,W,H,buf,st,cx,cy,minDim); break;
     case 'spiral':
-    default: drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,{wave:0, spacingMult:1}); break;
+    default: drawSpiralConnected(ctx,W,H,buf,st,cx,cy,minDim); break;
   }
   ctx.restore();
 }
 
-function drawPlain(ctx,W,H,buf,st,forceInvert){
-  const imgData = ctx.createImageData(W,H);
-  const d = imgData.data;
-  for(let y=0;y<H;y++){
-    for(let x=0;x<W;x++){
-      let v = sampleLum(buf, x/(W-1), y/(H-1));
-      const contrastFactor = st.contrast/100;
-      v = (v-0.5)*contrastFactor + 0.5 + (st.brightness/100);
-      if(v<0)v=0; if(v>1)v=1;
-      if(forceInvert || st.invert) v = 1-v;
-      const g = Math.round(v*255);
-      const p=(y*W+x)*4;
-      d[p]=g; d[p+1]=g; d[p+2]=g; d[p+3]=255;
-    }
+/* Build a solid, single filled ribbon along a path of center points
+   with a per-point half-width — outer edge forward, inner edge
+   backward, closed into one polygon. Because it's one fill() call
+   on one closed shape, there is no possible seam or gap between
+   samples: the whole spiral/ring is structurally one connected
+   shape, not a chain of separately-stroked segments. */
+function fillRibbon(ctx, pts, closed){
+  const n = pts.length;
+  const outer = new Array(n), inner = new Array(n);
+  for(let i=0;i<n;i++){
+    const p = pts[i];
+    const p0 = pts[closed ? (i-1+n)%n : Math.max(0,i-1)];
+    const p1 = pts[closed ? (i+1)%n : Math.min(n-1,i+1)];
+    let tx = p1.x-p0.x, ty = p1.y-p0.y;
+    const len = Math.hypot(tx,ty) || 1;
+    tx/=len; ty/=len;
+    const nx = -ty, ny = tx;
+    outer[i] = {x:p.x+nx*p.hw, y:p.y+ny*p.hw};
+    inner[i] = {x:p.x-nx*p.hw, y:p.y-ny*p.hw};
   }
-  ctx.putImageData(imgData,0,0);
+  ctx.beginPath();
+  ctx.moveTo(outer[0].x, outer[0].y);
+  for(let i=1;i<n;i++) ctx.lineTo(outer[i].x, outer[i].y);
+  if(closed) ctx.lineTo(outer[0].x, outer[0].y);
+  for(let i=n-1;i>=0;i--) ctx.lineTo(inner[i].x, inner[i].y);
+  ctx.closePath();
+  ctx.fill();
 }
 
-function drawSpiral(ctx,W,H,buf,st,cx,cy,minDim,opts){
+/* Single unbroken spiral ribbon: width tracks local darkness but
+   never drops to zero, and the whole curve is one filled polygon —
+   so it always stays connected end to end instead of breaking into
+   dashes or dots. */
+function drawSpiralConnected(ctx,W,H,buf,st,cx,cy,minDim){
   const maxRadius = (minDim/2) * (st.size/100) * 0.96;
-  const turns = st.amount;
-  const spacingMult = (st.spacing/100) * opts.spacingMult;
-  const radiusPerTurn = (maxRadius/turns) * spacingMult;
-  const totalRadius = radiusPerTurn * turns;
+  const turns = Math.max(1.5, (st.amount/8) * (100/st.spacing));
   const totalAngle = turns * Math.PI * 2;
   const rot = (st.rotation/180)*Math.PI;
-
-  // segment count controlled by detail slider, capped for perf
-  const baseSegPerTurn = 60 * (st.detail/100);
-  let segCount = Math.round(baseSegPerTurn * turns);
-  segCount = Math.max(200, Math.min(segCount, 9000));
+  const segCount = Math.max(400, Math.min(14000, Math.round(90*turns*(st.detail/100))));
   const angleStep = totalAngle/segCount;
-
-  const waveAmp = opts.wave ? radiusPerTurn*0.35 : 0;
-  const waveFreq = 5.5;
-
   const thicknessBase = st.thickness;
-  const smooth = st.smoothness/100;
 
-  let prevX=null, prevY=null, drawing=false;
-  ctx.beginPath();
-  let pathStarted=false;
-
+  const pts = new Array(segCount+1);
   for(let i=0;i<=segCount;i++){
     const theta = i*angleStep;
-    let r = (theta/totalAngle) * totalRadius;
-    if(waveAmp) r += Math.sin(theta*waveFreq/turns*turns*0.0+theta*0.9)*waveAmp*Math.min(1,theta/2);
-    if(waveAmp) r = (theta/totalAngle)*totalRadius + Math.sin(theta*waveFreq)*waveAmp;
+    const r = (theta/totalAngle) * maxRadius;
     const ang = theta + rot;
     const x = cx + r*Math.cos(ang);
     const y = cy + r*Math.sin(ang);
-    if(r>minDim*0.75){ /* allow slightly beyond for coverage */ }
-
     const nx = x/W, ny = y/H;
     let dark = 0;
-    if(nx>=0&&nx<=1&&ny>=0&&ny<=1){
-      dark = darknessAt(nx,ny,buf,st);
-    }
-    const lw = thicknessBase*(0.12+dark*1.9);
-
-    if(prevX!==null){
-      if(lw < thicknessBase*0.14){
-        // gap: end current path
-        if(pathStarted){ ctx.stroke(); ctx.beginPath(); pathStarted=false; }
-      } else {
-        ctx.lineWidth = lw;
-        if(!pathStarted){ ctx.beginPath(); ctx.moveTo(prevX,prevY); pathStarted=true; }
-        if(smooth>0.05){
-          const mx=(prevX+x)/2, my=(prevY+y)/2;
-          ctx.quadraticCurveTo(prevX,prevY,mx,my);
-        } else {
-          ctx.lineTo(x,y);
-        }
-        // stroke per-segment to allow variable width
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x,y);
-        pathStarted=true;
-      }
-    }
-    prevX=x; prevY=y;
+    if(nx>=0&&nx<=1&&ny>=0&&ny<=1) dark = darknessAt(nx,ny,buf,st);
+    const hw = thicknessBase*(0.22+dark*1.8)/2;
+    pts[i] = {x,y,hw};
   }
-  if(pathStarted) ctx.stroke();
+  fillRibbon(ctx, pts, false);
 }
 
-function drawRings(ctx,W,H,buf,st,cx,cy,minDim,dashed){
+/* Concentric rings, each drawn as one closed, unbroken ribbon loop. */
+function drawRingsConnected(ctx,W,H,buf,st,cx,cy,minDim){
   const maxRadius = (minDim/2) * (st.size/100) * 0.96;
-  const ringCount = Math.max(2, Math.round(st.amount/3));
-  const radiusStep = (maxRadius/ringCount) * (st.spacing/100);
+  const ringCount = Math.max(2, Math.round((st.amount/6) * (100/st.spacing)));
+  const radiusStep = maxRadius/ringCount;
   const rot = (st.rotation/180)*Math.PI;
   const thicknessBase = st.thickness;
-  const smooth = st.smoothness/100;
-
-  const segPerRing = Math.max(40, Math.min(600, Math.round(140*(st.detail/100))));
+  const targetSegLen = Math.max(0.9, 6.5/(st.detail/100));
 
   for(let ring=1; ring<=ringCount; ring++){
     const r = ring*radiusStep;
-    if(r>maxRadius) break;
+    const segPerRing = Math.max(24, Math.min(2000, Math.round((2*Math.PI*r)/targetSegLen)));
     const angleStep = (Math.PI*2)/segPerRing;
-    let pathStarted=false;
-    let prevX=null, prevY=null;
-    for(let i=0;i<=segPerRing;i++){
+    const pts = new Array(segPerRing);
+    for(let i=0;i<segPerRing;i++){
       const ang = i*angleStep + rot;
       const x = cx + r*Math.cos(ang);
       const y = cy + r*Math.sin(ang);
       const nx=x/W, ny=y/H;
       let dark=0;
       if(nx>=0&&nx<=1&&ny>=0&&ny<=1) dark = darknessAt(nx,ny,buf,st);
-      const lw = thicknessBase*(dashed? (0.05+dark*2.0) : (0.35+dark*1.5));
-      const cutoff = dashed? thicknessBase*0.16 : thicknessBase*0.05;
-
-      if(prevX!==null){
-        if(lw<cutoff){
-          if(pathStarted){ ctx.stroke(); ctx.beginPath(); pathStarted=false; }
-        } else {
-          ctx.lineWidth = lw;
-          if(!pathStarted){ ctx.beginPath(); ctx.moveTo(prevX,prevY); pathStarted=true; }
-          if(smooth>0.05){
-            const mx=(prevX+x)/2, my=(prevY+y)/2;
-            ctx.quadraticCurveTo(prevX,prevY,mx,my);
-          } else {
-            ctx.lineTo(x,y);
-          }
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(x,y);
-          pathStarted=true;
-        }
-      }
-      prevX=x; prevY=y;
+      const hw = thicknessBase*(0.25+dark*1.6)/2;
+      pts[i] = {x,y,hw};
     }
-    if(pathStarted) ctx.stroke();
+    fillRibbon(ctx, pts, true);
   }
 }
 
-/* Straight parallel line-art (vertical / horizontal), rotatable via
-   st.rotation so it can also produce diagonal hatching. Line width
-   at every point varies with local darkness, same as the spiral modes. */
-function drawLines(ctx,W,H,buf,st,cx,cy,orientation){
-  const count = Math.max(3, Math.round(st.amount/4));
-  const spreadAxisLen = orientation==='v' ? W : H;
-  const gap = Math.max(2, (spreadAxisLen/count) * (st.spacing/100) * ((st.size||100)/100));
+/* Explicit dot / halftone style — a spiral path of discrete dots
+   whose size tracks darkness, for people who want the stipple look
+   on purpose (rather than it happening by accident). */
+function drawDotsPattern(ctx,W,H,buf,st,cx,cy,minDim){
+  const maxRadius = (minDim/2) * (st.size/100) * 0.96;
+  const turns = Math.max(1.5, (st.amount/8) * (100/st.spacing));
+  const totalAngle = turns * Math.PI * 2;
   const rot = (st.rotation/180)*Math.PI;
   const thicknessBase = st.thickness;
-  const smooth = st.smoothness/100;
-  const segPerLine = Math.max(30, Math.min(500, Math.round(120*(st.detail/100))));
-  const diag = Math.sqrt(W*W+H*H);
+  const dotStep = Math.max(0.03, 0.16/(st.detail/100));
 
-  // base direction (along the line) and spread (perpendicular, between lines)
-  let dirX, dirY, spreadX, spreadY;
-  if(orientation==='v'){ dirX=0; dirY=1; spreadX=1; spreadY=0; }
-  else { dirX=1; dirY=0; spreadX=0; spreadY=1; }
-  const rdx = dirX*Math.cos(rot) - dirY*Math.sin(rot);
-  const rdy = dirX*Math.sin(rot) + dirY*Math.cos(rot);
-  const rsx = spreadX*Math.cos(rot) - spreadY*Math.sin(rot);
-  const rsy = spreadX*Math.sin(rot) + spreadY*Math.cos(rot);
-
-  const numLines = Math.ceil(diag/gap)+2;
-  const startOffset = -Math.floor(numLines/2)*gap;
-
-  for(let li=0; li<numLines; li++){
-    const offset = startOffset + li*gap;
-    const baseX = cx + rsx*offset;
-    const baseY = cy + rsy*offset;
-    let pathStarted=false, prevX=null, prevY=null;
-    for(let i=0;i<=segPerLine;i++){
-      const t = (i/segPerLine - 0.5) * diag;
-      const x = baseX + rdx*t;
-      const y = baseY + rdy*t;
-      const nx=x/W, ny=y/H;
-      let dark=0;
-      if(nx>=0&&nx<=1&&ny>=0&&ny<=1) dark = darknessAt(nx,ny,buf,st);
-      const lw = thicknessBase*(0.1+dark*1.9);
-
-      if(prevX!==null){
-        if(lw < thicknessBase*0.14){
-          if(pathStarted){ ctx.stroke(); ctx.beginPath(); pathStarted=false; }
-        } else {
-          ctx.lineWidth = lw;
-          if(!pathStarted){ ctx.beginPath(); ctx.moveTo(prevX,prevY); pathStarted=true; }
-          if(smooth>0.05){
-            const mx=(prevX+x)/2, my=(prevY+y)/2;
-            ctx.quadraticCurveTo(prevX,prevY,mx,my);
-          } else {
-            ctx.lineTo(x,y);
-          }
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(x,y);
-          pathStarted=true;
-        }
-      }
-      prevX=x; prevY=y;
-    }
-    if(pathStarted) ctx.stroke();
+  for(let theta=0; theta<=totalAngle; theta+=dotStep){
+    const r = (theta/totalAngle) * maxRadius;
+    const ang = theta + rot;
+    const x = cx + r*Math.cos(ang);
+    const y = cy + r*Math.sin(ang);
+    const nx = x/W, ny = y/H;
+    let dark = 0;
+    if(nx>=0&&nx<=1&&ny>=0&&ny<=1) dark = darknessAt(nx,ny,buf,st);
+    const radius = thicknessBase*(0.15+dark*1.4)*0.55;
+    if(radius<0.35) continue;
+    ctx.beginPath();
+    ctx.arc(x,y,radius,0,Math.PI*2);
+    ctx.fill();
   }
 }
 
 /* ============================================================
-   BEFORE / AFTER SLIDER
+   FULLSCREEN
 ============================================================ */
-function setSplit(pct){
-  baSplit = Math.max(0, Math.min(100, pct));
-  els.canvasTransform.style.setProperty('--ba-split', (100-baSplit)+'%');
-  els.after.style.clipPath = `inset(0 0 0 ${baSplit}%)`;
-  els.baHandle.style.left = baSplit+'%';
-}
-setSplit(50);
-
-let baDragging=false;
-function baPointerX(clientX){
-  const rect = els.canvasTransform.getBoundingClientRect();
-  return ((clientX-rect.left)/rect.width)*100;
-}
-function startBaDrag(e){
-  if(!img && !videoEl) return;
-  baDragging = true;
-  setSplit(baPointerX(e.clientX));
-}
-function moveBaDrag(e){
-  if(!baDragging || activePointers.size>1) return;
-  setSplit(baPointerX(e.clientX));
-}
-function endBaDrag(){ baDragging=false; }
-
-els.baHandle.addEventListener('pointerdown', e=>{
-  e.stopPropagation();
-  els.baHandle.setPointerCapture(e.pointerId);
-  startBaDrag(e);
-});
-els.baHandle.addEventListener('pointermove', moveBaDrag);
-els.baHandle.addEventListener('pointerup', endBaDrag);
-
-// drag the split by touching/dragging anywhere on the image itself
-els.canvasTransform.addEventListener('pointerdown', e=>{
-  if(activePointers.size>1) return;
-  startBaDrag(e);
-});
-els.canvasTransform.addEventListener('pointermove', moveBaDrag);
-els.canvasTransform.addEventListener('pointerup', endBaDrag);
-els.canvasTransform.addEventListener('pointercancel', endBaDrag);
-
-/* ============================================================
-   ZOOM / PAN / FIT / FULLSCREEN
-============================================================ */
-function applyTransform(){
-  els.canvasTransform.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
-  els.statZoom.textContent = Math.round(zoom*100)+'%';
-}
-function fitToScreen(){
-  zoom = 1; panX=0; panY=0;
-  applyTransform();
-}
-$('btn-fit').addEventListener('click', fitToScreen);
-$('btn-zoom-in').addEventListener('click', ()=>{ zoom = Math.min(4, zoom*1.25); applyTransform(); });
-$('btn-zoom-out').addEventListener('click', ()=>{ zoom = Math.max(0.4, zoom/1.25); applyTransform(); });
-
-els.stageWrap.addEventListener('wheel', e=>{
-  if(!img && !videoEl) return;
-  e.preventDefault();
-  const delta = e.deltaY>0? 0.92:1.08;
-  zoom = Math.max(0.4, Math.min(4, zoom*delta));
-  applyTransform();
-}, {passive:false});
-
-// simple pinch zoom
-let pinchStartDist=null, pinchStartZoom=1;
-els.canvasStage.addEventListener('pointerdown', e=>{
-  els.canvasStage.setPointerCapture && els.canvasStage.setPointerCapture(e.pointerId);
-});
-let activePointers = new Map();
-els.canvasStage.addEventListener('pointerdown', e=>{ activePointers.set(e.pointerId,e); });
-els.canvasStage.addEventListener('pointerup', e=>{ activePointers.delete(e.pointerId); pinchStartDist=null; });
-els.canvasStage.addEventListener('pointercancel', e=>{ activePointers.delete(e.pointerId); pinchStartDist=null; });
-els.canvasStage.addEventListener('pointermove', e=>{
-  if(!activePointers.has(e.pointerId)) return;
-  activePointers.set(e.pointerId, e);
-  if(activePointers.size===2){
-    baDragging=false;
-    const pts = Array.from(activePointers.values());
-    const dist = Math.hypot(pts[0].clientX-pts[1].clientX, pts[0].clientY-pts[1].clientY);
-    if(pinchStartDist===null){ pinchStartDist=dist; pinchStartZoom=zoom; }
-    else {
-      zoom = Math.max(0.4, Math.min(4, pinchStartZoom * (dist/pinchStartDist)));
-      applyTransform();
-    }
-  }
-});
-
 function toggleFullscreen(){
   if(!document.fullscreenElement){
     (els.stageWrap.requestFullscreen || els.stageWrap.webkitRequestFullscreen || function(){}).call(els.stageWrap);
@@ -1642,60 +998,35 @@ function toggleFullscreen(){
   }
 }
 $('btn-fullscreen').addEventListener('click', toggleFullscreen);
-$('btn-fullscreen-panel').addEventListener('click', toggleFullscreen);
-$('btn-fullscreen-stage').addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', ()=>{
   $('btn-fullscreen').classList.toggle('active', !!document.fullscreenElement);
-  $('btn-fullscreen-stage').classList.toggle('active', !!document.fullscreenElement);
 });
 
 /* ============================================================
-   RESET / RANDOMIZE
+   EXPORT PANEL (top-right dropdown)
 ============================================================ */
-$('btn-reset').addEventListener('click', ()=>{
-  state = Object.assign({}, DEFAULTS);
-  refreshAllControls();
-  scheduleRender(true);
-  pushHistory();
+const exportPanel = $('export-panel');
+const exportPanelBackdrop = $('export-panel-backdrop');
+const btnExportSettings = $('btn-export-settings');
+function openExportPanel(){
+  exportPanel.classList.add('show');
+  exportPanelBackdrop.classList.add('show');
+  btnExportSettings.classList.add('active');
+}
+function closeExportPanel(){
+  exportPanel.classList.remove('show');
+  exportPanelBackdrop.classList.remove('show');
+  btnExportSettings.classList.remove('active');
+}
+btnExportSettings.addEventListener('click', ()=>{
+  exportPanel.classList.contains('show') ? closeExportPanel() : openExportPanel();
 });
-$('btn-random').addEventListener('click', ()=>{
-  const modeIds = MODES.map(m=>m.id);
-  state.mode = modeIds[Math.floor(Math.random()*modeIds.length)];
-  const rand=(a,b)=> a + Math.random()*(b-a);
-  state.amount = Math.round(rand(20,150));
-  state.size = Math.round(rand(70,130));
-  state.thickness = parseFloat(rand(1,6).toFixed(1));
-  state.spacing = Math.round(rand(50,160));
-  state.contrast = Math.round(rand(80,160));
-  state.brightness = Math.round(rand(-20,20));
-  state.threshold = Math.round(rand(20,80));
-  state.rotation = Math.round(rand(0,360));
-  state.detail = Math.round(rand(60,140));
-  state.smoothness = Math.round(rand(10,80));
-  state.invert = Math.random()>0.75;
-  refreshAllControls();
-  scheduleRender(true);
-  pushHistory();
-});
+exportPanelBackdrop.addEventListener('click', closeExportPanel);
 
 /* ============================================================
-   EXPORT
+   EXPORT — image
 ============================================================ */
-let exportFmt = 'png';
-document.querySelectorAll('.fmt-btn[data-fmt]').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.fmt-btn[data-fmt]').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    exportFmt = btn.dataset.fmt;
-    $('quality-row').style.display = exportFmt==='png' ? 'none' : 'block';
-    $('export-name').textContent = 'spiral-art.' + (exportFmt==='jpeg'?'jpg':exportFmt);
-  });
-});
-$('in-quality').addEventListener('input', ()=>{
-  $('val-quality').textContent = $('in-quality').value+'%';
-});
-
-$('btn-export').addEventListener('click', ()=>{
+function exportImage(){
   if(!img) return;
   showSpinner(true);
   setTimeout(()=>{
@@ -1709,76 +1040,47 @@ $('btn-export').addEventListener('click', ()=>{
     const octx = off.getContext('2d');
     render(octx, ew, eh, exBuf);
 
-    const mime = exportFmt==='png'? 'image/png' : exportFmt==='jpeg'? 'image/jpeg' : 'image/webp';
-    const quality = parseInt($('in-quality').value,10)/100;
-    off.toBlob((blob)=>{
+    // JPEG has no alpha channel — if the background was left transparent,
+    // composite onto white first so it doesn't turn black on export.
+    let outCanvas = off;
+    if(imageFmt==='jpeg' && state.bgMode==='transparent'){
+      const comp = document.createElement('canvas');
+      comp.width=ew; comp.height=eh;
+      const cctx = comp.getContext('2d');
+      cctx.fillStyle = '#ffffff';
+      cctx.fillRect(0,0,ew,eh);
+      cctx.drawImage(off,0,0);
+      outCanvas = comp;
+    }
+
+    const mime = imageFmt==='png'? 'image/png' : imageFmt==='jpeg'? 'image/jpeg' : 'image/webp';
+    outCanvas.toBlob((blob)=>{
       showSpinner(false);
       if(!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'spiral-art.' + (exportFmt==='jpeg'?'jpg':exportFmt);
+      a.download = 'spiral-art.' + (imageFmt==='jpeg'?'jpg':imageFmt);
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(()=>URL.revokeObjectURL(url), 4000);
-    }, mime, exportFmt==='png'? undefined : quality);
+    }, mime, 0.92);
   }, 30);
-});
+}
 
 /* ============================================================
-   VIDEO EXPORT (renders every frame with the spiral effect and
-   records the result back into a downloadable video file)
+   EXPORT — video
 ============================================================ */
-document.querySelectorAll('#video-format-row .fmt-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#video-format-row .fmt-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    exportState.format = btn.dataset.format;
-  });
-});
-document.querySelectorAll('#video-res-row .fmt-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#video-res-row .fmt-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    exportState.resolution = parseInt(btn.dataset.res,10);
-  });
-});
-document.querySelectorAll('#video-fps-row .fmt-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#video-fps-row .fmt-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    exportState.fps = parseInt(btn.dataset.fps,10);
-  });
-});
-$('switch-audio').addEventListener('click', ()=>{
-  exportState.includeAudio = !exportState.includeAudio;
-  $('switch-audio').classList.toggle('on', exportState.includeAudio);
-});
-
 function pickVideoMime(preferMp4){
-  const webmCandidates = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm'
-  ];
-  const mp4Candidates = [
-    'video/mp4;codecs=avc1,mp4a.40.2',
-    'video/mp4'
-  ];
+  const webmCandidates = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  const mp4Candidates = ['video/mp4;codecs=avc1,mp4a.40.2','video/mp4'];
   const candidates = preferMp4 ? mp4Candidates.concat(webmCandidates) : webmCandidates.concat(mp4Candidates);
   for(const c of candidates){
     if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
   }
   return '';
 }
-
-/* Most browsers (Chrome/Firefox/Edge) can only record MediaRecorder
-   output as WebM. To offer a real MP4 download there, we lazy-load
-   ffmpeg.wasm (single-thread build — no COOP/COEP headers required)
-   from a CDN and transcode the recorded WebM to MP4 entirely in the
-   browser, only when the user actually picks MP4 and the browser
-   couldn't record MP4 natively. */
 function loadFFmpegScript(){
   return new Promise((resolve,reject)=>{
     if(window.FFmpeg){ resolve(); return; }
@@ -1795,10 +1097,7 @@ async function getFFmpeg(){
     ffmpegLoadingPromise = (async ()=>{
       await loadFFmpegScript();
       const { createFFmpeg } = window.FFmpeg;
-      const inst = createFFmpeg({
-        log:false,
-        corePath:'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
-      });
+      const inst = createFFmpeg({ log:false, corePath:'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js' });
       await inst.load();
       ffmpegInstance = inst;
       return inst;
@@ -1809,56 +1108,38 @@ async function getFFmpeg(){
 async function convertWebmToMp4(webmBlob, onProgress){
   const ffmpeg = await getFFmpeg();
   const { fetchFile } = window.FFmpeg;
-  ffmpeg.setProgress(({ratio})=>{
-    if(onProgress && ratio>=0 && ratio<=1) onProgress(ratio);
-  });
+  ffmpeg.setProgress(({ratio})=>{ if(onProgress && ratio>=0 && ratio<=1) onProgress(ratio); });
   ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
-  await ffmpeg.run(
-    '-i','input.webm',
-    '-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p',
-    '-c:a','aac','-b:a','160k',
-    'output.mp4'
-  );
+  await ffmpeg.run('-i','input.webm','-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','output.mp4');
   const data = ffmpeg.FS('readFile','output.mp4');
   try{ ffmpeg.FS('unlink','input.webm'); ffmpeg.FS('unlink','output.mp4'); }catch(e){}
   return new Blob([data.buffer], {type:'video/mp4'});
 }
 
 function setExportUI(running){
-  $('btn-export-video').classList.toggle('hidden', running);
-  $('video-export-progress-wrap').classList.toggle('hidden', !running);
+  els.btnExport.disabled = running;
+  els.exportProgressWrap.classList.toggle('show', running);
   els.btnPreviewPlayPause.disabled = running;
   els.scrubInput.disabled = running;
 }
 function setExportProgress(pct, statusText){
-  $('video-export-bar').style.width = Math.round(pct*100)+'%';
-  $('video-export-pct').textContent = Math.round(pct*100)+'%';
-  if(statusText) $('video-export-status').textContent = statusText;
+  els.exportBar.style.width = Math.round(pct*100)+'%';
+  els.exportPct.textContent = Math.round(pct*100)+'%';
+  if(statusText) els.exportStatus.textContent = statusText;
 }
-
-$('btn-export-video').addEventListener('click', startVideoExport);
-$('btn-export-video-cancel').addEventListener('click', ()=>{
-  exportState.cancelled = true;
-});
+$('btn-export-cancel').addEventListener('click', ()=>{ exportState.cancelled = true; });
 
 function startVideoExport(){
   if(!videoEl || exportState.running) return;
-  if(!window.MediaRecorder){
-    alert('Perekaman video tidak didukung di browser ini.');
-    return;
-  }
+  if(!window.MediaRecorder){ alert('Perekaman video tidak didukung di browser ini.'); return; }
   const mimeType = pickVideoMime(exportState.format==='mp4');
-  if(!mimeType){
-    alert('Browser ini tidak mendukung format perekaman video yang tersedia.');
-    return;
-  }
+  if(!mimeType){ alert('Browser ini tidak mendukung format perekaman video yang tersedia.'); return; }
 
   exportState.running = true;
   exportState.cancelled = false;
   setExportUI(true);
   setExportProgress(0, 'Menyiapkan…');
 
-  // stop live preview loop & pause playback while we drive the video manually
   videoPreviewPlaying = false;
   syncPreviewPlayIcon();
   videoEl.pause();
@@ -1884,131 +1165,84 @@ function startVideoExport(){
 
   const onSeekedToStart = ()=>{
     videoEl.removeEventListener('seeked', onSeekedToStart);
-
     let tracks = [];
     try{
       const canvasStream = exportCanvas.captureStream(exportState.fps);
       tracks = tracks.concat(canvasStream.getVideoTracks());
-    } catch(err){
-      alert('Gagal membuat aliran video untuk direkam.');
-      finish(false);
-      return;
-    }
+    } catch(err){ alert('Gagal membuat aliran video untuk direkam.'); finish(false); return; }
     if(exportState.includeAudio){
       try{
         const vidStream = videoEl.captureStream ? videoEl.captureStream() : (videoEl.mozCaptureStream ? videoEl.mozCaptureStream() : null);
         if(vidStream) tracks = tracks.concat(vidStream.getAudioTracks());
-      } catch(err){ /* no audio track available, continue without it */ }
+      } catch(err){}
     }
-
     const outStream = new MediaStream(tracks);
     let recorder;
-    try{
-      recorder = new MediaRecorder(outStream, {mimeType, videoBitsPerSecond: 6000000});
-    } catch(err){
-      alert('Gagal memulai perekaman video: '+err.message);
-      finish(false);
-      return;
-    }
+    try{ recorder = new MediaRecorder(outStream, {mimeType, videoBitsPerSecond: 6000000}); }
+    catch(err){ alert('Gagal memulai perekaman video: '+err.message); finish(false); return; }
     exportRecorder = recorder;
     exportChunks = [];
     recorder.ondataavailable = e=>{ if(e.data && e.data.size) exportChunks.push(e.data); };
 
     recorder.onstop = async ()=>{
-      if(exportState.cancelled || exportChunks.length===0){
-        finish(false);
-        return;
-      }
+      if(exportState.cancelled || exportChunks.length===0){ finish(false); return; }
       const recordedMime = mimeType.split(';')[0];
       const rawBlob = new Blob(exportChunks, {type:recordedMime});
-
       const downloadBlob = (blob, ext)=>{
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = 'spiral-video.'+ext;
-        $('export-video-name').textContent = 'spiral-video.'+ext;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        a.href = url; a.download = 'spiral-video.'+ext;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(()=>URL.revokeObjectURL(url), 4000);
       };
-
-      // Safari etc. can record MP4 natively — nothing else to do
-      if(recordedMime.indexOf('mp4')>=0){
-        downloadBlob(rawBlob, 'mp4');
-        finish(true);
-        return;
-      }
-
-      // user wants MP4 but the browser only gave us WebM — convert it
+      if(recordedMime.indexOf('mp4')>=0){ downloadBlob(rawBlob, 'mp4'); finish(true); return; }
       if(exportState.format==='mp4'){
         setExportProgress(0, 'Mengonversi ke MP4…');
         try{
-          const mp4Blob = await convertWebmToMp4(rawBlob, (ratio)=>{
-            setExportProgress(ratio, 'Mengonversi ke MP4…');
-          });
-          downloadBlob(mp4Blob, 'mp4');
-          finish(true);
+          const mp4Blob = await convertWebmToMp4(rawBlob, (ratio)=>{ setExportProgress(ratio, 'Mengonversi ke MP4…'); });
+          downloadBlob(mp4Blob, 'mp4'); finish(true);
         } catch(err){
           alert('Konversi ke MP4 gagal ('+err.message+'). Video diunduh sebagai WebM sebagai gantinya.');
-          downloadBlob(rawBlob, 'webm');
-          finish(true);
+          downloadBlob(rawBlob, 'webm'); finish(true);
         }
         return;
       }
-
-      downloadBlob(rawBlob, 'webm');
-      finish(true);
+      downloadBlob(rawBlob, 'webm'); finish(true);
     };
 
-    videoEl.muted = true; // avoid double playback through speakers; capture still gets audio samples
+    videoEl.muted = true;
     recorder.start(250);
-
     let stopTimer = null;
     const drawTick = ()=>{
-      if(exportState.cancelled){
-        clearTimeout(stopTimer);
-        videoEl.pause();
-        if(recorder.state!=='inactive') recorder.stop();
-        return;
-      }
+      if(exportState.cancelled){ clearTimeout(stopTimer); videoEl.pause(); if(recorder.state!=='inactive') recorder.stop(); return; }
       if(videoEl.ended){
-        if(!stopTimer){
-          stopTimer = setTimeout(()=>{ if(recorder.state!=='inactive') recorder.stop(); }, 250);
-        }
+        if(!stopTimer) stopTimer = setTimeout(()=>{ if(recorder.state!=='inactive') recorder.stop(); }, 250);
         return;
       }
       const buf = buildLumBuffer(videoEl, ew, eh);
       render(exportCtx, ew, eh, buf);
-      if(videoDuration>0){
-        setExportProgress(Math.min(1, videoEl.currentTime/videoDuration), 'Memproses…');
-      }
+      if(videoDuration>0) setExportProgress(Math.min(1, videoEl.currentTime/videoDuration), 'Memproses…');
       requestAnimationFrame(drawTick);
     };
-
-    videoEl.play().then(()=>{
-      requestAnimationFrame(drawTick);
-    }).catch(err=>{
+    videoEl.play().then(()=>{ requestAnimationFrame(drawTick); }).catch(err=>{
       alert('Gagal memutar video untuk direkam: '+err.message);
       if(recorder.state!=='inactive') recorder.stop();
     });
   };
 
-  if(Math.abs(videoEl.currentTime) < 0.01){
-    onSeekedToStart();
-  } else {
-    videoEl.addEventListener('seeked', onSeekedToStart);
-    videoEl.currentTime = 0;
-  }
+  if(Math.abs(videoEl.currentTime) < 0.01){ onSeekedToStart(); }
+  else { videoEl.addEventListener('seeked', onSeekedToStart); videoEl.currentTime = 0; }
 }
+
+els.btnExport.addEventListener('click', ()=>{
+  if(mediaType==='video') startVideoExport();
+  else exportImage();
+});
 
 /* ============================================================
    MISC
 ============================================================ */
-function showSpinner(show){
-  els.spinner.classList.toggle('show', show);
-}
+function showSpinner(show){ els.spinner.classList.toggle('show', show); }
 
 })();
 </script>
