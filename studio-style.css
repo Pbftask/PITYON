@@ -493,3 +493,20 @@ input{font-family:inherit;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 ::-webkit-scrollbar{width:0;height:0;}
+
+  .privacy-btn{
+    color:#048bff;
+    margin:4%;
+    font-size: 12px;
+    margin-bottom: 3px;
+  }
+  .hest{
+    background: transparent;
+    border:solid 1px #fff;
+    padding: 3px;
+    width:95%;
+    border-radius:20px;
+    margin:5px;
+    text-align: center;
+    max-height: 30px;
+  }
